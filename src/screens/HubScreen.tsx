@@ -7,13 +7,26 @@ import { MenuButton, Wordmark } from '../components/Chrome'
 import { useScreenEntryDelay } from '../motion/ScreenEntry'
 
 /**
- * The wash over each photo. Sampled from the design export: the columns are a
- * ~90% flat tint that warms and deepens left-to-right across the row, with
- * only a trace of the photograph reading through. Interpolating per cell means
- * the same values drive the desktop row and the stacked mobile list.
+ * The wash over each photo.
+ *
+ * The hub columns are a ~90% flat tint that warms and deepens left to right,
+ * with only a trace of the photograph reading through. Each value is fitted
+ * against its own source photo from the export — `design = 0.09*src + C` —
+ * rather than interpolated between the ends: columns 4 and 5 do not sit on
+ * the straight line the others suggest, and guessing column 5 put it 28 too
+ * blue. Falls back to the last value if a track is added.
  */
-const TINT_FROM = [191, 168, 151]
-const TINT_TO = [163, 134, 129]
+const TINTS = [
+  'rgb(191, 169, 151)',
+  'rgb(183, 158, 146)',
+  'rgb(174, 144, 133)',
+  'rgb(171, 145, 136)',
+  'rgb(151, 117, 101)',
+]
+
+function tint(i: number): string {
+  return TINTS[i] ?? TINTS[TINTS.length - 1]
+}
 
 /**
  * Vertical letter pitch, as letter-spacing.
@@ -30,12 +43,6 @@ const ADVANCE_EM = 1.207
 function pitchSpacing(glyphs: number): string {
   const targetEm = glyphs <= 5 ? 1.008 : 0.907
   return `${(targetEm - ADVANCE_EM).toFixed(3)}em`
-}
-
-function tint(i: number, n: number): string {
-  const t = n > 1 ? i / (n - 1) : 0
-  const c = TINT_FROM.map((from, k) => Math.round(from + (TINT_TO[k] - from) * t))
-  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`
 }
 
 export function HubScreen({
@@ -84,7 +91,7 @@ export function HubScreen({
             className="cell"
             style={
               {
-                ['--tint' as string]: tint(i, TRACKS.length),
+                ['--tint' as string]: tint(i),
                 ['--pitch' as string]: pitchSpacing(
                   track.word.length + (track.glyph ? 1 : 0),
                 ),

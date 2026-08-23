@@ -78,10 +78,10 @@ export const TRACKS: Track[] = [
     glyph: '🔥',
     kicker: 'ONLINE COACHING',
     tagline: '1-on-1 Dialogue',
-    title: ['one on', 'one', 'chat'],
+    title: ['1-on-1', 'chat'],
     body: 'Direct access to Anna for personalized guidance, form checks, and accountability. Your coach in your pocket.',
     image: '/images/connect.jpg',
-    alt: 'Anna reviewing a training plan on a tablet with a client',
+    alt: 'Anna sitting on a beach towel at the shoreline, finger raised to her lips',
   },
 ]
 

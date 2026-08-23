@@ -5,8 +5,17 @@ detail screen for each, at desktop and mobile.
 
 ```bash
 npm install
-npm run dev
+npm run dev          # local dev server
+npm run build        # production build into dist/
+npm run build:artifact   # single self-contained HTML into dist-artifact/
 ```
+
+`build:artifact` inlines the stylesheet, script, Latin font faces and all five
+photographs (recompressed at q70) into one file with no external requests. It
+emits two variants: `atelier.html` for a host that supplies its own document
+shell, and `atelier-standalone.html` as a complete document you can open from
+disk or send to someone. That build switches to `HashRouter`, because a file
+served without rewrites has nothing to resolve deep links against.
 
 | Route | Screen | Figma node |
 | --- | --- | --- |
@@ -15,7 +24,7 @@ npm run dev
 | `/build` | 02 Build the body you want | `13:659` |
 | `/perform` | 03 Perform better as you age | `13:809` |
 | `/recover` | 04 Strong through injuries | `13:835` |
-| `/connect` | 05 One on one chat | `13:861` |
+| `/connect` | 05 1-on-1 chat | `13:861` |
 
 Stack: Vite, React 19, TypeScript, React Router 7, Framer Motion 13,
 self-hosted Inter / Inter Tight.
@@ -31,9 +40,11 @@ diffs) rather than estimated by eye:
 - **Layout** — 96px header and 82px footer, 50/50 panel split, 80px gutter,
   490px copy column, 188×46 CTA pill.
 - **Hub columns** — the photos sit under a ~90% wash that warms left to right.
-  Fitting each column against its source photo gave `design = 0.09·src + C`,
-  so the tint interpolates `rgb(191,168,151)` → `rgb(163,134,129)`. The
-  rendered result measures `#bca798` against the export's `#baa595`.
+  Each column's tint is fitted against its own source photo
+  (`design = 0.09·src + C`) and stored per column in `TINTS`, not interpolated
+  between the ends: columns 4 and 5 do not sit on the line the others suggest,
+  and extrapolating column 5 put it 28 too blue. Every column now renders
+  within 1/255 of the export.
 - **Hub words** — cap height is constant at 65px; the export varies *letter
   pitch* (90px at five glyphs or fewer, 81px beyond). Upright vertical text
   advances by the font's own vertical metric — 1.207em for Inter Tight — so
@@ -77,13 +88,10 @@ it came in.
   appears in every header and is the only chrome on the desktop hub. Rather
   than ship a dead control, `src/components/Menu.tsx` builds a panel from the
   existing tokens and track list. Replace it when a real frame exists.
-- **Track 05 uses a different photo.** The export shows a beach shot that was
-  not in the supplied set; the 1-on-1 consultation photo stands in, which
-  suits "online coaching". Swap `/images/connect.jpg` to change it.
 - **Desktop hub has no header or footer**, matching the export — the columns
   are the whole page. The wordmark, intro copy and footer appear at ≤900px,
   also as drawn.
-- Two supplied photos are unused and parked in `designs/spare-photos/` so they
-  do not ship in `public/`.
+- Three supplied photos are unused and parked in `designs/spare-photos/` so
+  they do not ship in `public/`.
 - `prefers-reduced-motion` is wired throughout but was not runtime-verified —
   the preference cannot be emulated from this environment.

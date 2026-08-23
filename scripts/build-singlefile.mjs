@@ -7,9 +7,13 @@
  */
 import { readFile, writeFile, readdir } from 'node:fs/promises'
 import { join, extname } from 'node:path'
+import sharp from 'sharp'
 
 const DIST = 'dist'
-const PHOTOS = '.artifact-assets'
+/** Read straight from the shipped photos so a swap can never go stale. */
+const PHOTOS = 'public/images'
+/** Recompression for the inlined copies — the originals stay untouched. */
+const PHOTO_QUALITY = 70
 const OUT = 'dist-artifact/atelier.html'
 /** Complete document, for sending to someone directly — no host involved. */
 const OUT_STANDALONE = 'dist-artifact/atelier-standalone.html'
@@ -47,13 +51,16 @@ async function main() {
 
   // --- photographs: swap the public/ paths for recompressed data URIs -----
   let photos = 0
+  let photoBytes = 0
   for (const f of await readdir(PHOTOS)) {
-    const data = `data:image/jpeg;base64,${await b64(join(PHOTOS, f))}`
     const ref = `/images/${f}`
-    if (js.includes(ref)) {
-      js = js.split(ref).join(data)
-      photos++
-    }
+    if (!js.includes(ref)) continue
+    const buf = await sharp(join(PHOTOS, f))
+      .jpeg({ quality: PHOTO_QUALITY, progressive: true, mozjpeg: true })
+      .toBuffer()
+    photoBytes += buf.length
+    js = js.split(ref).join(`data:image/jpeg;base64,${buf.toString('base64')}`)
+    photos++
   }
 
   // An inline module script must not contain a literal closing script tag.
@@ -91,7 +98,7 @@ async function main() {
   await writeFile(OUT_STANDALONE, standalone)
   const kb = (n) => `${(n / 1024).toFixed(0)}KB`
   console.log(`fonts inlined : ${kept} of ${blocks.length} @font-face blocks`)
-  console.log(`photos inlined: ${photos}`)
+  console.log(`photos inlined: ${photos} (${kb(photoBytes)} recompressed at q${PHOTO_QUALITY})`)
   console.log(`css / js      : ${kb(css.length)} / ${kb(js.length)}`)
   console.log(`output        : ${OUT}  ${kb(out.length)}`)
   console.log(`standalone    : ${OUT_STANDALONE}  ${kb(standalone.length)}`)
