@@ -1,0 +1,768 @@
+/* ===========================================================================
+   Tokens. Colours and metrics are sampled from the Figma exports rather than
+   eyeballed — see the comments for where each came from.
+   =========================================================================== */
+
+:root {
+  /* Surface + ink (modal colours of the 1440x900 detail export) */
+  --bg: #faf7f2;
+  --ink: #0a0a0a;
+  --body: #3a3938;
+  --meta: #9a9895;
+  --rule: #e2dfda;
+
+  /* Accent: the kicker + wordmark dot */
+  --coral: #ff5f38;
+  /* The oversized number watermark */
+  --ghost: #faeee7;
+
+  --sans: 'Inter Variable', system-ui, -apple-system, sans-serif;
+  --display: 'Inter Tight Variable', 'Inter Variable', system-ui, sans-serif;
+
+  /* Motion — mirrors src/motion/tokens.ts */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 140ms;
+  --dur-micro: 180ms;
+  --dur-short: 220ms;
+  --dur-screen: 320ms;
+
+  /* Layout (measured: header 96 + 1px rule, footer rule at y=818 of 900) */
+  --topbar-h: 96px;
+  --footer-h: 82px;
+  --gutter: 80px;
+
+  color-scheme: light;
+  font-family: var(--sans);
+  color: var(--body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 3px;
+}
+
+/* ===========================================================================
+   Screen stack
+   =========================================================================== */
+
+.screen-stack {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  will-change: transform, opacity;
+}
+
+/* ===========================================================================
+   Chrome: wordmark, burger, back, footer
+   =========================================================================== */
+
+.mark {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.mark__an {
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.mark__dot {
+  color: var(--coral);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.mark__word {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--meta);
+}
+
+.mark--inv .mark__an {
+  color: #fff;
+}
+
+.burger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  width: 30px;
+  height: 30px;
+}
+
+.burger__bar {
+  display: block;
+  width: 100%;
+  height: 1.5px;
+  background: var(--ink);
+  border-radius: 2px;
+}
+
+.burger--inv .burger__bar {
+  background: #fff;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+
+.back__arrow {
+  display: inline-block;
+  transition: transform var(--dur-micro) var(--ease-out);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--footer-h);
+  padding: 0 var(--gutter);
+  border-top: 1px solid var(--rule);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.footer__name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.footer__meta {
+  color: var(--meta);
+}
+
+/* ===========================================================================
+   Detail screen
+   =========================================================================== */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 var(--topbar-h);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--rule);
+}
+
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 34px;
+}
+
+.detail__body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Even-numbered tracks put the photo on the right. Only the paint order
+   changes — the DOM keeps media first so the reading order stays stable. */
+.detail__body--flip .panel--media {
+  order: 2;
+}
+
+.panel {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panel--media {
+  background: #ece7e0;
+}
+
+.panel__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  will-change: transform;
+}
+
+.panel--text {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--gutter);
+}
+
+/* Measured against the export: digits 209px tall, ink box at x1218-1439 and
+   y194-402 of 1440x900 — so it hangs above centre and is clipped by the panel
+   edge. The em offsets below place it there and scale with the font size. */
+.ghost {
+  position: absolute;
+  right: -0.142em;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-top: -0.91em;
+  font-family: var(--display);
+  font-size: clamp(150px, 20vw, 290px);
+  font-weight: 500;
+  line-height: 0.72;
+  letter-spacing: -0.03em;
+  color: var(--ghost);
+  pointer-events: none;
+  user-select: none;
+}
+
+.copy {
+  position: relative;
+  /* Measured: the widest body line across the set is 473px (track 02), and
+     the copy column must be wide enough to let it sit on one line while still
+     breaking track 01 after "joints". */
+  max-width: 490px;
+}
+
+/* Measured: ink run 103px wide, cap ~9px. */
+.copy__kicker {
+  margin: 0 0 25px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--coral);
+}
+
+.copy__title {
+  margin: 0;
+  font-family: var(--display);
+  /* Solved against the export: Inter Tight at 77px reproduces all three line
+     widths (145 / 250 / 234px) to within 2% at near-zero tracking, with the
+     measured 68px line pitch. */
+  font-size: clamp(40px, 5.35vw, 77px);
+  font-weight: 400;
+  line-height: 0.883;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+
+.copy__line {
+  display: block;
+}
+
+.copy__body {
+  /* Solved from line widths (462 / 399px), not ink height — that string has
+     descenders, which is what made 21px look right and measure wrong. */
+  margin: 26px 0 0;
+  font-size: 18px;
+  line-height: 1.61;
+  color: var(--body);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 49px;
+  padding: 0 24px; /* measured pill: 188x46 */
+  height: 46px;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  will-change: transform;
+}
+
+.cta__arrow {
+  transition: transform var(--dur-micro) var(--ease-out);
+}
+
+/* ===========================================================================
+   Hub
+   =========================================================================== */
+
+.hub {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Desktop hub is a full-bleed splash: the columns are the whole page. */
+.hub__intro,
+.hub__footer {
+  display: none;
+}
+
+.hub__tracks {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.cell {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.cell__hit {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.cell__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  will-change: transform;
+  transition: transform 600ms var(--ease-out);
+}
+
+/* ~90% wash, warming left-to-right; --tint is set per cell from JS. */
+.cell__tint {
+  position: absolute;
+  inset: 0;
+  background: var(--tint);
+  opacity: 0.9;
+  transition: opacity var(--dur-short) var(--ease-out);
+}
+
+/* Measured: cap height 65px, letter pitch 90px, top-aligned at y=130 of 900
+   (the words hang from the top, they are not vertically centred). Sized off
+   min(vw, vh) so a seven-letter word cannot run into the label on a short
+   viewport. */
+.cell__word {
+  position: absolute;
+  top: 14.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-family: var(--display);
+  font-size: clamp(26px, min(6.2vw, 9.9vh), 90px);
+  font-weight: 400;
+  letter-spacing: var(--pitch, -0.2em);
+  line-height: 1;
+  color: var(--ink);
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* Inline, so upright vertical text stacks it under the last letter instead of
+   starting a new column beside the word. */
+.cell__glyph {
+  font-size: 0.72em;
+}
+
+.cell__label {
+  position: absolute;
+  right: 25px;
+  bottom: 50px;
+  left: 25px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  will-change: transform;
+}
+
+.cell__labelText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cell__kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+.cell__tagline {
+  font-family: var(--display);
+  font-size: 18px;
+  font-style: italic;
+  color: var(--ink);
+}
+
+.cell__num {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  opacity: 0.55;
+}
+
+/* ===========================================================================
+   Menu overlay
+   =========================================================================== */
+
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--ink);
+  will-change: transform, opacity;
+}
+
+.menu__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 var(--topbar-h);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.menu__list {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--gutter);
+}
+
+.menu__item {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.menu__num {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--coral);
+  flex: 0 0 auto;
+}
+
+.menu__word {
+  font-family: var(--display);
+  font-size: clamp(30px, 4.4vw, 58px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: #fff;
+  line-height: 1;
+}
+
+.menu__glyph {
+  margin-left: 0.16em;
+  font-size: 0.6em;
+}
+
+.menu__tagline {
+  margin-left: auto;
+  font-family: var(--display);
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ===========================================================================
+   Hover — gated so a tap on touch cannot leave a stuck hover state
+   =========================================================================== */
+
+@media (hover: hover) and (pointer: fine) {
+  .cell:hover .cell__tint {
+    opacity: 0.62;
+  }
+
+  .cell:hover .cell__img {
+    transform: scale(1.04);
+  }
+
+  .cta:hover .cta__arrow {
+    transform: translateX(3px);
+  }
+
+  .back:hover .back__arrow {
+    transform: translateX(-3px);
+  }
+
+  .menu__item:hover .menu__word {
+    color: var(--coral);
+    transition: color var(--dur-micro) ease;
+  }
+}
+
+/* ===========================================================================
+   Mobile — measured from the 390px exports
+   =========================================================================== */
+
+@media (max-width: 900px) {
+  :root {
+    --topbar-h: 72px;
+    --footer-h: 130px;
+    --gutter: 25px;
+  }
+
+  /* Measured: cap 17px on the 390px export. */
+  .mark__an {
+    font-size: 23px;
+  }
+
+  /* --- hub gets a dark intro and footer at this size --- */
+  .hub {
+    overflow-y: auto;
+    background: var(--ink);
+  }
+
+  .hub__intro {
+    display: block;
+    padding: 0 var(--gutter) 26px;
+    background: var(--ink);
+  }
+
+  .hub__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--topbar-h);
+  }
+
+  .hub__title {
+    margin: 4px 0 12px;
+    font-family: var(--display);
+    font-size: 30px;
+    font-weight: 400;
+    line-height: 1.06;
+    letter-spacing: -0.03em;
+    color: #fff;
+  }
+
+  .hub__sub {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .hub__tracks {
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  .cell {
+    height: 172px;
+  }
+
+  /* Rows read left-to-right, so the word lies flat again. */
+  .cell__word {
+    top: 50%;
+    left: var(--gutter);
+    transform: translateY(-50%);
+    writing-mode: horizontal-tb;
+    font-size: 30px;
+    letter-spacing: 0.34em;
+  }
+
+  .cell__glyph {
+    display: inline;
+    margin: 0;
+    letter-spacing: 0;
+  }
+
+  .cell__label {
+    top: 50%;
+    right: var(--gutter);
+    bottom: auto;
+    left: auto;
+    transform: translateY(-50%);
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .cell__labelText {
+    align-items: flex-end;
+  }
+
+  .cell__num {
+    font-size: 10px;
+  }
+
+  .hub__footer {
+    display: block;
+    padding: 26px var(--gutter);
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    color: rgba(255, 255, 255, 0.45);
+    background: var(--ink);
+  }
+
+  /* --- detail stacks: photo above, copy below --- */
+  .detail {
+    overflow-y: auto;
+  }
+
+  .detail__body {
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  .detail__body--flip .panel--media {
+    order: 0;
+  }
+
+  .panel--media {
+    height: 320px; /* measured: y 73..392 of 940 */
+  }
+
+  .panel--text {
+    padding: 40px var(--gutter) 48px;
+  }
+
+  .copy {
+    max-width: none;
+  }
+
+  .copy__kicker {
+    margin-bottom: 16px;
+    font-size: 11px;
+  }
+
+  /* Measured: cap 34px, line pitch 42px, line widths 89/153/142. */
+  .copy__title {
+    font-size: 47px;
+    line-height: 0.893;
+  }
+
+  .copy__body {
+    margin-top: 18px;
+    font-size: 15px;
+    line-height: 1.73;
+  }
+
+  /* The export lets the number wrap here, stacking one digit per line
+     (measured ink 82x277) and sitting just inside the right edge rather than
+     bleeding off it as it does on desktop. */
+  .ghost {
+    top: 40px;
+    right: 10px;
+    margin-top: 0;
+    transform: none;
+    max-width: 0.62em;
+    word-break: break-all;
+    text-align: right;
+    font-size: 190px;
+  }
+
+  .cta {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    height: 48px;
+    margin-top: 34px;
+  }
+
+  .footer {
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .menu__list {
+    justify-content: flex-start;
+    padding-top: 24px;
+  }
+
+  .menu__item {
+    gap: 16px;
+    padding: 14px 0;
+  }
+
+  .menu__tagline {
+    font-size: 13px;
+  }
+}
+
+/* ===========================================================================
+   Reduced motion: fewer and gentler, not zero. Opacity and colour survive,
+   travel does not. The JS side reads useReducedMotion() and drops its
+   transforms to match.
+   =========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    will-change: opacity;
+  }
+
+  .cell__img,
+  .cta__arrow,
+  .back__arrow {
+    transition: none;
+  }
+
+  .cell:hover .cell__img {
+    transform: none;
+  }
+}
