@@ -766,3 +766,445 @@ ul {
     transform: none;
   }
 }
+
+/* ===========================================================================
+   Booking — manual flow: details, transfer, receipt
+   =========================================================================== */
+
+.booking {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  will-change: transform, opacity;
+}
+
+.booking__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 var(--topbar-h);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Two rules crossed into an X — the same gesture as the menu button's open
+   state, so the two dismissals read as the same control. */
+.booking__close {
+  position: relative;
+  width: 30px;
+  height: 30px;
+}
+
+.booking__close span {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  right: 3px;
+  height: 1.5px;
+  background: var(--ink);
+  border-radius: 2px;
+}
+
+.booking__close span:first-child {
+  transform: rotate(45deg);
+}
+
+.booking__close span:last-child {
+  transform: rotate(-45deg);
+}
+
+.booking__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+}
+
+.booking__inner {
+  width: 100%;
+  max-width: 560px;
+  padding: 56px var(--gutter) 72px;
+}
+
+.booking__eyebrow {
+  margin: 0 0 28px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--coral);
+}
+
+.booking__title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(32px, 3.6vw, 46px);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.booking__lede {
+  margin: 14px 0 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--body);
+}
+
+.booking__lede strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.booking__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 36px;
+}
+
+.booking__actions .cta {
+  margin-top: 0;
+}
+
+/* --- step rail ----------------------------------------------------------- */
+
+.steps {
+  display: flex;
+  gap: 22px;
+  margin: 0 0 34px;
+  padding: 0 0 16px;
+  list-style: none;
+  border-bottom: 1px solid var(--rule);
+}
+
+.steps__item {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--meta);
+  transition: color var(--dur-micro) ease;
+}
+
+.steps__item--on {
+  color: var(--ink);
+}
+
+.steps__num {
+  font-weight: 700;
+}
+
+.steps__item--on .steps__num {
+  color: var(--coral);
+}
+
+/* --- fields -------------------------------------------------------------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 28px;
+}
+
+.field__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.field__input {
+  width: 100%;
+  padding: 13px 0;
+  font: inherit;
+  font-size: 18px;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  transition: border-color var(--dur-micro) ease;
+}
+
+.field__input::placeholder {
+  color: #c4c0ba;
+}
+
+.field__input:focus {
+  outline: none;
+  border-bottom-color: var(--coral);
+}
+
+.field__hint {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--meta);
+}
+
+.field__error {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--coral);
+}
+
+/* --- account details ----------------------------------------------------- */
+
+.account {
+  margin-top: 30px;
+  border-top: 1px solid var(--rule);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.row__label {
+  grid-column: 1;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--meta);
+}
+
+.row__value {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 16px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* IBAN and reference are the two things people mistype, so they get weight
+   and tabular figures. */
+.row--strong .row__value {
+  font-size: 19px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.row__copy {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding: 7px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--bg);
+  transition: border-color var(--dur-micro) ease, background var(--dur-micro) ease;
+}
+
+.account__bank,
+.account__note {
+  margin: 16px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--meta);
+}
+
+.account__note {
+  color: var(--body);
+}
+
+/* --- receipt dropzone ---------------------------------------------------- */
+
+.drop {
+  position: relative;
+  margin-top: 30px;
+  border: 1px dashed #d3cec6;
+  border-radius: 14px;
+  background: #f6f2ec;
+  transition: border-color var(--dur-micro) ease, background var(--dur-micro) ease;
+}
+
+.drop--over {
+  border-color: var(--coral);
+  background: #faeee7;
+}
+
+.drop__input {
+  display: none;
+}
+
+.drop__hit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 42px 24px;
+  text-align: center;
+  background: none;
+}
+
+.drop__title {
+  font-family: var(--display);
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.drop__hint {
+  font-size: 12px;
+  color: var(--meta);
+}
+
+.drop__file {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+}
+
+.drop__thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+
+.drop__pdf {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--meta);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+.drop__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.drop__name {
+  font-size: 15px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.drop__size {
+  font-size: 12px;
+  color: var(--meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.drop__clear {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+/* --- secondary button ---------------------------------------------------- */
+
+.ghostbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 46px;
+  padding: 0 22px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  will-change: transform;
+}
+
+.ghostbtn__arrow {
+  transition: transform var(--dur-micro) var(--ease-out);
+}
+
+.cta:disabled,
+.ghostbtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row__copy:hover,
+  .drop__clear:hover {
+    border-color: var(--ink);
+  }
+
+  .ghostbtn:hover {
+    border-color: var(--ink);
+  }
+
+  .ghostbtn:hover .ghostbtn__arrow {
+    transform: translateX(-3px);
+  }
+
+  .drop__hit:hover .drop__title {
+    color: var(--coral);
+  }
+}
+
+@media (max-width: 900px) {
+  .booking__inner {
+    padding: 32px var(--gutter) 56px;
+  }
+
+  .steps {
+    gap: 14px;
+  }
+
+  .steps__name {
+    display: none;
+  }
+
+  .steps__item {
+    font-size: 12px;
+  }
+
+  .booking__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .booking__actions .cta,
+  .ghostbtn {
+    justify-content: center;
+    width: 100%;
+    height: 52px;
+  }
+}

@@ -82,6 +82,40 @@ AnimatePresence feeds `custom` to the exiting child; static objects would
 freeze it with the previous direction and send the outgoing screen out the way
 it came in.
 
+## Booking (manual payments)
+
+`BOOK A SESSION` opens a three-step flow in `src/components/BookingSheet.tsx`:
+
+1. **Your session** — what to call you (one informal name, not first/last) and a
+   preferred date and time.
+2. **Transfer** — the bank details for that track, every row copyable.
+3. **Receipt** — drag-drop or file-pick a screenshot or PDF, then send.
+
+Payment is split by track in `src/data/payment.ts`: the 1-on-1 chat (`connect`)
+is billed to the Revolut account, every other track to the practice account.
+Both IBANs were checked against the mod-97 checksum and the Italian
+27-character layout before being entered, and IBAN 1's decomposition matches
+the supplied CIN/ABI/CAB exactly. **Re-run that check if either account is
+edited** — the helper is three lines and a wrong digit moves real money.
+
+Each booking generates a transfer reference (`TRAIN · GIULIA`) shown first and
+copyable. Manual reconciliation depends on it: without a reference in the
+description, matching payments to bookings is done by eye against amounts.
+
+**This is front end only.** Nothing is transmitted or stored — no backend, no
+upload target, no email. The confirmation step is presentation, not proof of
+delivery, and `onSubmit` in `BookingSheet` is where a real submission would go.
+Do not put it in front of a paying client in this state.
+
+Two things still need a decision:
+
+- **No amount is shown**, because no price was given. A transfer screen without
+  a figure is hard to act on, so this needs either per-track pricing or a line
+  telling the payer what to send.
+- **Receipts are bank documents.** Once there is somewhere to upload them, they
+  become sensitive personal data with the retention and access questions that
+  implies — worth settling before the backend, not after.
+
 ## Deviations from the designs
 
 - **Menu overlay is an addition.** The set has no menu frame, but the burger

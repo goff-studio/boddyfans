@@ -1,10 +1,12 @@
 import { useParams } from 'react-router-dom'
+import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { imageSide, TRACKS, trackBySlug } from '../data/tracks'
 import { DURATION, EASE_OUT, STAGGER } from '../motion/tokens'
 import { BackLink, Footer, MenuButton, Wordmark } from '../components/Chrome'
 import { Pressable } from '../motion/primitives'
 import { useScreenEntryDelay } from '../motion/ScreenEntry'
+import { BookingSheet } from '../components/BookingSheet'
 
 export function TrackScreen({
   onOpenMenu,
@@ -17,6 +19,7 @@ export function TrackScreen({
   const track = trackBySlug(slug)
   const reduce = useReducedMotion()
   const entryDelay = useScreenEntryDelay()
+  const [booking, setBooking] = useState(false)
 
   if (!track) return null
   const side = imageSide(TRACKS.indexOf(track))
@@ -127,7 +130,7 @@ export function TrackScreen({
               variants={rise}
               transition={{ duration: DURATION.short, ease: EASE_OUT }}
             >
-              <Pressable className="cta">
+              <Pressable className="cta" onClick={() => setBooking(true)}>
                 <span>BOOK A SESSION</span>
                 <span className="cta__arrow" aria-hidden="true">
                   →
@@ -139,6 +142,12 @@ export function TrackScreen({
       </motion.div>
 
       <Footer />
+
+      <BookingSheet
+        track={track}
+        open={booking}
+        onClose={() => setBooking(false)}
+      />
     </div>
   )
 }
