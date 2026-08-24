@@ -251,6 +251,65 @@ The marketing entry must not pay for Firebase. It is loaded through
 If you add a Firebase import to anything on the marketing path, check
 `dist/assets` afterwards.
 
+### Deploying — Vercel builds from the repo
+
+Firebase Hosting needs the CLI, so the site is hosted on Vercel at
+**body-fans.com**. `vercel.json` pins the framework, build command, output
+directory and the SPA rewrite; Vercel needs no other configuration.
+
+**Set the environment variables in the Vercel dashboard.** `.env` is gitignored,
+so the repo carries no config — and Vite inlines `VITE_*` values at build time,
+meaning a variable missing at build time is missing from the shipped app. The
+build still succeeds, which is the trap: it just ships a broken one.
+
+Project → Settings → Environment Variables, for Production *and* Preview:
+
+```
+VITE_FIREBASE_API_KEY             AIza…
+VITE_FIREBASE_AUTH_DOMAIN         body-fans.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID          body-fans
+VITE_FIREBASE_STORAGE_BUCKET      body-fans.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID 23622028814
+VITE_FIREBASE_APP_ID              1:23622028814:web:…
+VITE_CLIENT_EMAIL_DOMAIN          clients.body-fans.com
+VITE_SITE_URL                     https://body-fans.com
+VITE_USE_EMULATORS                0
+```
+
+Symptoms of a missing variable:
+
+| Missing | What you see |
+| --- | --- |
+| any `VITE_FIREBASE_*` | Marketing pages fine; `/login` and `/admin` throw "Firebase is not configured" |
+| `VITE_SITE_URL` | Build logs a warning; `sitemap.xml` and `og:image` point at `example.invalid`, no canonical tags |
+| `VITE_USE_EMULATORS` left at `1` | The deployed app tries to reach `127.0.0.1` and every read hangs |
+
+**Why the blanket rewrite is safe.** `vercel.json` rewrites `/(.*)` to
+`/index.html`, but Vercel checks the filesystem first — so `/train` still serves
+the pre-built `dist/train/index.html` with its own `<head>` and share card, and
+only the pathless routes (`/login`, `/admin/*`, `/chat`) fall through to the SPA.
+Verify after a deploy by viewing source on `/train`: you should see
+`train without injuries` in the `<title>`, not the hub's.
+
+**Preview deployments hit the same Firestore.** A `*.vercel.app` preview shares
+the one project, so test bookings made there land in production data. There is no
+staging project.
+
+After the first deploy, add `body-fans.com` under Authentication → Settings →
+Authorized domains. Email/password sign-in generally works without it, but it is
+required the moment Google sign-in or email links are added.
+
+**Testing online writes to the real database.** Test bookings become real
+documents and approving one creates a real auth account. To clean up: delete the
+`bookings` document, the user under Authentication, and its
+`usernames/{username}` document — miss that last one and the username stays
+reserved.
+
+**The booking form is publicly writable by design** — that is what lets visitors
+book without an account. Once the site is live, anyone can post bookings. The
+rules cap each one's shape and size, but rate limiting needs App Check. Watch the
+`bookings` collection after launch.
+
 ### One-time setup on the real project — console only, no CLI
 
 Everything below is done at <https://console.firebase.google.com> → project
