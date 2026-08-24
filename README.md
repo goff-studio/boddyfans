@@ -338,8 +338,22 @@ Admin SDK.
    Leave "Email link" off.
 
 2. **Create Anna's account.**
-   Authentication → Users → Add user. Use a real address she controls, and a
-   strong password. Copy the **User UID** from the row — you need it next.
+   Authentication → Users → Add user. Copy the **User UID** from the row — you
+   need it next.
+
+   Anna signs in with an **email address**, not a username: `toLoginEmail()`
+   passes anything containing `@` through unchanged, and only bare usernames get
+   mapped to the client domain. Whatever address you enter here is her login.
+
+   Use a **real inbox** she controls — `anna@body-fans.com` if that domain takes
+   mail, otherwise her personal address. Clients get synthetic
+   `@clients.body-fans.com` addresses with no inbox and cannot self-reset;
+   Anna on a real address can. Do **not** give her an
+   `@clients.body-fans.com` address: a client later choosing the username
+   `anna` would collide with her login.
+
+   Her admin rights are keyed to her UID, not her email, so changing the
+   address later does not break the panel.
 
 3. **Grant her admin.** This is the step that actually gives access; nothing
    else does.

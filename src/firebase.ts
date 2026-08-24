@@ -110,9 +110,25 @@ export async function createAccountOutOfBand(
     if (USE_EMULATORS) {
       connectAuthEmulator(secondaryAuth, 'http://127.0.0.1:9099', { disableWarnings: true })
     }
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password)
-    await signOut(secondaryAuth)
-    return cred.user.uid
+    try {
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password)
+      await signOut(secondaryAuth)
+      return cred.user.uid
+    } catch (e) {
+      // Reachable two ways, and the generic message hid both: the username
+      // collides with an account created in the console, or a previous
+      // approval created the account and then failed before reserving the
+      // username. Either way the fix is a different username.
+      if (
+        typeof e === 'object' && e !== null && 'code' in e &&
+        (e as { code: unknown }).code === 'auth/email-already-in-use'
+      ) {
+        throw new Error(
+          `An account already exists for "${email}". Pick a different username.`,
+        )
+      }
+      throw e
+    }
   } finally {
     // Leaking app instances leaks their listeners and IndexedDB handles.
     await deleteApp(secondary)
