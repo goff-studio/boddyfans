@@ -11,6 +11,7 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { getDb } from '../firebase'
+import { MAX_CHAT_IMAGE_BYTES, type StoredImage } from './images'
 import { assertIdSafe, messagesPath, type ChatMessage, type MessageDoc } from './schema'
 
 /**
@@ -57,6 +58,44 @@ export async function sendMessage(
 }
 
 /**
+ * Send an image. Stored inline as base64 because there is no Cloud Storage.
+ *
+ * The caller must have run it through `prepareChatImage` first — that is what
+ * bounds the size. This re-checks anyway, because a document over Firestore's
+ * 1 MiB limit fails with an opaque error and the cause is worth naming.
+ */
+export async function sendImage(
+  conversationId: string,
+  senderUid: string,
+  image: StoredImage,
+): Promise<void> {
+  assertIdSafe('conversationId', conversationId)
+  assertIdSafe('senderUid', senderUid)
+
+  if (image.size > MAX_CHAT_IMAGE_BYTES) {
+    throw new Error('That image is too large to send.')
+  }
+
+  const db = getDb()
+  const ref = doc(collection(db, messagesPath(conversationId)))
+  assertIdSafe('messageId', ref.id)
+
+  await setDoc(ref, {
+    senderUid,
+    sentAt: serverTimestamp(),
+    image: {
+      contentType: image.contentType,
+      size: image.size,
+      dataBase64: image.dataBase64,
+    },
+  })
+
+  updateDoc(doc(db, 'conversations', conversationId), {
+    lastMessageAt: serverTimestamp(),
+  }).catch(() => {})
+}
+
+/**
  * Live message list, oldest last. Returns an unsubscribe.
  *
  * Ordered descending in the query so `limit` keeps the most recent page, then
@@ -81,15 +120,22 @@ export function watchMessages(
     q,
     (snap) => {
       const out = snap.docs.map((d) => {
-        const data = d.data() as MessageDoc & { text?: string }
+        const data = d.data() as MessageDoc
         // ENCRYPTION SEAM (read): when bodies are sealed, decrypt here and set
         // `failed: true` on a rejected auth tag rather than showing raw bytes.
+        const text = typeof data.text === 'string' ? data.text : null
+        const image =
+          data.image && typeof data.image.dataBase64 === 'string'
+            ? { contentType: data.image.contentType, dataBase64: data.image.dataBase64 }
+            : null
         return {
           id: d.id,
           senderUid: data.senderUid,
           sentAt: data.sentAt instanceof Timestamp ? data.sentAt.toDate() : null,
-          text: typeof data.text === 'string' ? data.text : null,
-          failed: typeof data.text !== 'string',
+          text,
+          image,
+          // Neither field usable: the document is malformed or unreadable.
+          failed: text === null && image === null,
         } satisfies ChatMessage
       })
       onChange(out.reverse())

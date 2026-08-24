@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { DURATION, EASE_OUT } from '../motion/tokens'
 import { Pressable } from '../motion/primitives'
-import { sendMessage, watchMessages } from './client'
+import { sendImage, sendMessage, watchMessages } from './client'
+import { ACCEPTED_IMAGE_TYPES, imageDataUrl, prepareChatImage } from './images'
 import type { ChatMessage } from './schema'
 
 /**
@@ -13,11 +14,21 @@ export function ChatPane({
   conversationId,
   myUid,
   otherLabel,
+  canSendImages = false,
+  readOnly = false,
 }: {
   conversationId: string
   myUid: string
   /** Who the other side is, for the empty state. */
   otherLabel: string
+  /** Images are admin-only; firestore.rules enforces it regardless. */
+  canSendImages?: boolean
+  /**
+   * Hides the composer for a closed chat. Cosmetic — the rules are what
+   * actually refuse the write, so this only avoids offering an action that
+   * would fail.
+   */
+  readOnly?: boolean
 }) {
   const [messages, setMessages] = useState<ChatMessage[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -27,6 +38,8 @@ export function ChatPane({
 
   const scroller = useRef<HTMLDivElement | null>(null)
   const atBottom = useRef(true)
+  const picker = useRef<HTMLInputElement | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   // Same reasoning as the bookings list: reset during render so a switched
   // conversation never shows the previous one's messages.
@@ -57,6 +70,29 @@ export function ChatPane({
     const el = scroller.current
     if (!el) return
     atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+  }
+
+  async function pickImage(file: File | undefined) {
+    if (!file || uploading) return
+    setUploading(true)
+    setError(null)
+    try {
+      // Downscaled and re-encoded before it ever reaches Firestore — an
+      // untouched phone photo would blow the 1 MiB document limit outright.
+      const prepared = await prepareChatImage(file)
+      if (!prepared.ok) {
+        setError(prepared.reason)
+        return
+      }
+      atBottom.current = true
+      await sendImage(conversationId, myUid, prepared.image)
+    } catch {
+      setError('That image did not send.')
+    } finally {
+      setUploading(false)
+      // Let the same file be picked again after a failure.
+      if (picker.current) picker.current.value = ''
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -95,7 +131,13 @@ export function ChatPane({
                 return (
                   <motion.li
                     key={m.id}
-                    className={mine ? 'bubble bubble--mine' : 'bubble'}
+                    className={[
+                      'bubble',
+                      mine ? 'bubble--mine' : '',
+                      m.image && !m.failed ? 'bubble--image' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                     initial={
                       reduce
                         ? { opacity: 0 }
@@ -104,13 +146,26 @@ export function ChatPane({
                     animate={{ opacity: 1, transform: 'translateY(0px)' }}
                     transition={{ duration: DURATION.short, ease: EASE_OUT }}
                   >
-                    <span className="bubble__text">
-                      {m.failed ? (
+                    {m.failed ? (
+                      <span className="bubble__text">
                         <em className="bubble__failed">This message could not be read.</em>
-                      ) : (
-                        m.text
-                      )}
-                    </span>
+                      </span>
+                    ) : m.image ? (
+                      <a
+                        className="bubble__imageLink"
+                        href={imageDataUrl(m.image)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <img
+                          className="bubble__image"
+                          src={imageDataUrl(m.image)}
+                          alt="Shared image"
+                        />
+                      </a>
+                    ) : (
+                      <span className="bubble__text">{m.text}</span>
+                    )}
                     <time className="bubble__time">
                       {m.sentAt
                         ? m.sentAt.toLocaleTimeString(undefined, {
@@ -133,7 +188,29 @@ export function ChatPane({
         </p>
       ) : null}
 
+      {readOnly ? null : (
       <form className="composer" onSubmit={submit}>
+        {canSendImages ? (
+          <>
+            <input
+              ref={picker}
+              className="drop__input"
+              type="file"
+              accept={ACCEPTED_IMAGE_TYPES.join(',')}
+              onChange={(e) => void pickImage(e.target.files?.[0])}
+            />
+            <button
+              type="button"
+              className="composer__attach"
+              onClick={() => picker.current?.click()}
+              disabled={uploading}
+              aria-label="Send an image"
+              title="Send an image"
+            >
+              {uploading ? '…' : '+'}
+            </button>
+          </>
+        ) : null}
         <textarea
           className="composer__input"
           value={draft}
@@ -154,6 +231,7 @@ export function ChatPane({
           <span className="cta__arrow" aria-hidden="true">→</span>
         </Pressable>
       </form>
+      )}
     </div>
   )
 }

@@ -2,7 +2,6 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -11,7 +10,6 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
-  where,
   writeBatch,
 } from 'firebase/firestore'
 import {
@@ -68,7 +66,8 @@ function toBooking(id: string, d: Record<string, unknown>): Booking {
 
 export type NewBooking = {
   name: string
-  email?: string
+  /** Required: it is how a returning client is matched to their existing chat. */
+  email: string
   trackSlug: string
   preferredAt: string
   reference: string
@@ -88,7 +87,7 @@ export async function submitBooking(input: NewBooking): Promise<string> {
 
   await setDoc(ref, {
     name: input.name.trim().slice(0, 80),
-    ...(input.email?.trim() ? { email: input.email.trim().slice(0, 200) } : {}),
+    email: normalizeEmail(input.email),
     trackSlug: input.trackSlug,
     preferredAt: input.preferredAt,
     reference: input.reference,
@@ -149,13 +148,61 @@ export async function getReceipt(
   }
 }
 
-/** The client's own booking, for the client-side chat header. */
-export async function getMyBooking(clientUid: string): Promise<Booking | null> {
-  const snap = await getDocs(
-    query(collection(getDb(), 'bookings'), where('clientUid', '==', clientUid), limit(1)),
-  )
-  const first = snap.docs[0]
-  return first ? toBooking(first.id, first.data()) : null
+/**
+ * The client's chat pointer, read from their own profile.
+ *
+ * Deliberately not a query over bookings: a returning client has several, so
+ * picking the newest would need `where(clientUid) + orderBy(createdAt)` and
+ * therefore a composite index. The profile already knows.
+ */
+export async function getMyChat(
+  clientUid: string,
+): Promise<{ conversationId: string; status: 'open' | 'closed' } | null> {
+  const profile = await getDoc(doc(getDb(), 'users', clientUid))
+  const conversationId = profile.data()?.conversationId
+  if (typeof conversationId !== 'string' || !conversationId) return null
+  return { conversationId, status: await getConversationStatus(conversationId) }
+}
+
+/* --- client identity ----------------------------------------------------- */
+
+/**
+ * Email is the identity key, so it must normalise to exactly one form.
+ * Lowercased and trimmed; used verbatim as a document id, which is safe because
+ * an address cannot contain a slash.
+ */
+export function normalizeEmail(raw: string): string {
+  return raw.trim().toLowerCase().slice(0, 200)
+}
+
+export type ExistingClient = { uid: string; username: string; conversationId: string }
+
+/** Who this address already belongs to, if anyone. */
+export async function findClientByEmail(email: string): Promise<ExistingClient | null> {
+  const key = normalizeEmail(email)
+  if (!key) return null
+  const snap = await getDoc(doc(getDb(), 'clientsByEmail', key))
+  if (!snap.exists()) return null
+  const d = snap.data()
+  return {
+    uid: String(d.uid),
+    username: String(d.username),
+    conversationId: String(d.conversationId),
+  }
+}
+
+/** Close a chat: the client can no longer write. Anna still can. */
+export async function setChatOpen(conversationId: string, open: boolean): Promise<void> {
+  await updateDoc(doc(getDb(), 'conversations', conversationId), {
+    status: open ? 'open' : 'closed',
+  })
+}
+
+export async function getConversationStatus(
+  conversationId: string,
+): Promise<'open' | 'closed'> {
+  const snap = await getDoc(doc(getDb(), 'conversations', conversationId))
+  return (snap.data()?.status as 'open' | 'closed') ?? 'open'
 }
 
 /* --- approval ------------------------------------------------------------ */
@@ -185,11 +232,61 @@ export async function isUsernameTaken(username: string): Promise<boolean> {
  *
  * The password is returned once and never stored.
  */
+export type ApprovalOutcome =
+  | { kind: 'created'; credentials: ApprovalResult }
+  /** Returning client: reconnected to their existing login and chat. */
+  | { kind: 'reconnected'; username: string; conversationId: string }
+
+/**
+ * Approve a booking: connect it to a chat the client can reach.
+ *
+ * Two paths, decided by the booking email:
+ *
+ *   - **Returning client** — reuse their account and conversation, reopen it,
+ *     and point the new booking at it. No new account, and deliberately no new
+ *     password: their existing login still works, and rotating it silently
+ *     would lock them out of a chat they can already see.
+ *   - **New client** — provision an account as before.
+ *
+ * Account creation comes first because it is the only step that cannot be
+ * rolled back client-side; everything after is one batch, so a failure cannot
+ * leave a booking approved with no reachable chat.
+ */
 export async function approveBooking(
   booking: Booking,
   adminUid: string,
   desiredUsername: string,
-): Promise<ApprovalResult> {
+): Promise<ApprovalOutcome> {
+  const db = getDb()
+  const email = normalizeEmail(booking.email ?? '')
+  if (!email) {
+    throw new Error('This booking has no email, so it cannot be linked to a client.')
+  }
+
+  const existing = await findClientByEmail(email)
+
+  if (existing) {
+    const batch = writeBatch(db)
+    // Reopening is the whole point of approving a repeat booking.
+    batch.update(doc(db, 'conversations', existing.conversationId), {
+      status: 'open',
+      bookingId: booking.id,
+      lastMessageAt: serverTimestamp(),
+    })
+    batch.update(doc(db, 'bookings', booking.id), {
+      status: 'approved',
+      clientUid: existing.uid,
+      conversationId: existing.conversationId,
+      approvedAt: serverTimestamp(),
+    })
+    await batch.commit()
+    return {
+      kind: 'reconnected',
+      username: existing.username,
+      conversationId: existing.conversationId,
+    }
+  }
+
   const username = normalizeUsername(desiredUsername)
   if (!username) throw new Error('Pick a username of at least one character.')
   if (await isUsernameTaken(username)) {
@@ -199,29 +296,33 @@ export async function approveBooking(
   const password = generatePassphrase()
   const clientUid = await createAccountOutOfBand(usernameToEmail(username), password)
 
-  const db = getDb()
   const conversationRef = doc(collection(db, 'conversations'))
   const batch = writeBatch(db)
 
   batch.set(doc(db, 'users', clientUid), {
     username,
     displayName: booking.name,
-    ...(booking.email ? { email: booking.email } : {}),
+    email,
     role: 'client',
     bookingId: booking.id,
+    // Held here so the client's screen needs no query over bookings, which
+    // would want a composite index it does not otherwise need.
+    conversationId: conversationRef.id,
     createdAt: serverTimestamp(),
   })
-
   batch.set(doc(db, 'usernames', username), { uid: clientUid })
-
+  batch.set(doc(db, 'clientsByEmail', email), {
+    uid: clientUid,
+    username,
+    conversationId: conversationRef.id,
+  })
   batch.set(conversationRef, {
     bookingId: booking.id,
     participants: [adminUid, clientUid],
+    status: 'open',
     createdAt: serverTimestamp(),
     lastMessageAt: serverTimestamp(),
   })
-
-  // A merge, not a rewrite: the rules reject any change to name/trackSlug/createdAt.
   batch.update(doc(db, 'bookings', booking.id), {
     status: 'approved',
     clientUid,
@@ -231,7 +332,10 @@ export async function approveBooking(
 
   await batch.commit()
 
-  return { username, password, conversationId: conversationRef.id }
+  return {
+    kind: 'created',
+    credentials: { username, password, conversationId: conversationRef.id },
+  }
 }
 
 /**
@@ -275,9 +379,21 @@ export async function reissueAccess(
     ...(booking.email ? { email: booking.email } : {}),
     role: 'client',
     bookingId: booking.id,
+    conversationId: booking.conversationId,
     createdAt: serverTimestamp(),
   })
   batch.set(doc(db, 'usernames', username), { uid: clientUid })
+
+  // The email index must follow the new uid, or this client's next booking
+  // would reconnect them to the login that was just retired.
+  const email = normalizeEmail(booking.email ?? '')
+  if (email) {
+    batch.set(doc(db, 'clientsByEmail', email), {
+      uid: clientUid,
+      username,
+      conversationId: booking.conversationId,
+    })
+  }
 
   // Same conversation, new participant — the old uid loses access here.
   batch.update(doc(db, 'conversations', booking.conversationId), {

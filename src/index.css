@@ -1564,3 +1564,64 @@ ul {
     padding: 0 18px;
   }
 }
+
+/* --- chat images ---------------------------------------------------------- */
+
+/* An image bubble is a frame for the picture, so it drops the text padding
+   and the asymmetric tail that only reads well around a line of type. */
+.bubble--image {
+  padding: 4px;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.bubble__imageLink {
+  display: block;
+  line-height: 0;
+}
+
+.bubble__image {
+  display: block;
+  max-width: 100%;
+  /* Capped so a tall photo cannot push the whole transcript off screen. */
+  max-height: 320px;
+  width: auto;
+  border-radius: 11px;
+  object-fit: contain;
+}
+
+.composer__attach {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 46px;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--meta);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  transition: color var(--dur-micro) ease;
+}
+
+.composer__attach:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer__attach:hover:not(:disabled) {
+    color: var(--ink);
+  }
+}
+
+/* A closed chat: stated once, above the transcript, not repeated per bubble. */
+.notice {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--body);
+  background: #faeee7;
+  border-radius: 10px;
+}

@@ -14,6 +14,9 @@ import {
   getReceipt,
   isUsernameTaken,
   reissueAccess,
+  setChatOpen,
+  getConversationStatus,
+  type ApprovalOutcome,
   type ApprovalResult,
   type Booking,
 } from '../chat/bookings'
@@ -79,8 +82,10 @@ export function AdminBookingScreen() {
               conversationId={booking.conversationId}
               myUid={user.uid}
               otherLabel={booking.name}
+              canSendImages
             />
           </section>
+          <ChatState conversationId={booking.conversationId} />
           <Reissue booking={booking} adminUid={user.uid} />
         </>
       ) : booking.status === 'pending' ? (
@@ -139,6 +144,64 @@ function Receipt({
           <img className="receipt" src={url} alt="Bank transfer receipt" />
         </a>
       )}
+    </section>
+  )
+}
+
+/**
+ * Open or close the chat. Closing stops the client writing; Anna still can, so
+ * she can leave a closing note.
+ */
+function ChatState({ conversationId }: { conversationId: string }) {
+  const [status, setStatus] = useState<'open' | 'closed' | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void getConversationStatus(conversationId)
+      .then((s) => active && setStatus(s))
+      .catch(() => active && setStatus('open'))
+    return () => {
+      active = false
+    }
+  }, [conversationId])
+
+  async function toggle() {
+    if (busy || status === null) return
+    setBusy(true)
+    setError(null)
+    const next = status === 'open' ? 'closed' : 'open'
+    try {
+      await setChatOpen(conversationId, next === 'open')
+      setStatus(next)
+    } catch {
+      setError('Could not change the chat status.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="section">
+      <h2 className="section__title">Chat status</h2>
+      <p className="booking__lede">
+        {status === 'closed'
+          ? 'Closed — they can read the history but not reply. Approving a new booking from them reopens it automatically.'
+          : 'Open — they can reply. Close it when the sessions are done.'}
+      </p>
+      {error ? (
+        <p className="field__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="booking__actions">
+        <Pressable className="ghostbtn" onClick={toggle} disabled={busy || status === null}>
+          <span>
+            {status === null ? 'LOADING…' : status === 'open' ? 'CLOSE CHAT' : 'REOPEN CHAT'}
+          </span>
+        </Pressable>
+      </div>
     </section>
   )
 }
@@ -287,7 +350,7 @@ function Approve({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [taken, setTaken] = useState(false)
-  const [issued, setIssued] = useState<ApprovalResult | null>(null)
+  const [outcome, setOutcome] = useState<ApprovalOutcome | null>(null)
 
   // Check availability as she types, so the collision is not a surprise at the
   // point where an auth account has already been created.
@@ -304,13 +367,34 @@ function Approve({
     }
   }, [username])
 
-  if (issued) {
+  if (outcome?.kind === 'created') {
     return (
       <Credentials
         name={booking.name}
-        issued={issued}
+        issued={outcome.credentials}
         note="You can always issue a new one."
       />
+    )
+  }
+
+  // A returning client keeps their existing login, so there is nothing to hand
+  // over — saying so is the whole message.
+  if (outcome?.kind === 'reconnected') {
+    return (
+      <section className="section">
+        <h2 className="section__title">Reconnected</h2>
+        <p className="booking__lede">
+          {booking.name} already has an account for {booking.email}. Their chat
+          is open again and their existing login still works — they sign in as{' '}
+          <strong>{outcome.username}</strong>. Nothing new to send them.
+        </p>
+        <div className="booking__actions">
+          <Pressable className="cta" onClick={() => window.location.reload()}>
+            <span>OPEN THE CHAT</span>
+            <span className="cta__arrow" aria-hidden="true">→</span>
+          </Pressable>
+        </div>
+      </section>
     )
   }
 
@@ -319,8 +403,7 @@ function Approve({
     setBusy(true)
     setError(null)
     try {
-      const result = await approveBooking(booking, adminUid, username)
-      setIssued(result)
+      setOutcome(await approveBooking(booking, adminUid, username))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not approve this booking.')
       setBusy(false)

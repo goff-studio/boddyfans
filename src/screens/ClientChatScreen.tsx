@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { Wordmark } from '../components/Chrome'
 import { useSession } from '../auth/session'
 import { ChatPane } from '../chat/ChatPane'
-import { getMyBooking, type Booking } from '../chat/bookings'
-import { TRACKS } from '../data/tracks'
+import { getMyChat } from '../chat/bookings'
 
 /**
  * The client's side: one conversation, the one attached to their booking.
@@ -13,23 +12,20 @@ import { TRACKS } from '../data/tracks'
  */
 export function ClientChatScreen() {
   const { user, displayName, signOutNow } = useSession()
-  const [booking, setBooking] = useState<Booking | null | 'missing'>(null)
+  const [chat, setChat] = useState<
+    { conversationId: string; status: 'open' | 'closed' } | null | 'none'
+  >(null)
 
   useEffect(() => {
     if (!user) return
     let active = true
-    void getMyBooking(user.uid)
-      .then((b) => active && setBooking(b ?? 'missing'))
-      .catch(() => active && setBooking('missing'))
+    void getMyChat(user.uid)
+      .then((c) => active && setChat(c ?? 'none'))
+      .catch(() => active && setChat('none'))
     return () => {
       active = false
     }
   }, [user])
-
-  const track =
-    booking && booking !== 'missing'
-      ? TRACKS.find((t) => t.slug === booking.trackSlug)
-      : undefined
 
   return (
     <div className="panel">
@@ -45,22 +41,32 @@ export function ClientChatScreen() {
 
       <div className="panel__body">
         <div className="panel__inner">
-          <p className="booking__eyebrow">{track?.kicker ?? 'YOUR ATELIER'}</p>
+          <p className="booking__eyebrow">YOUR ATELIER</p>
           <h1 className="booking__title">Chat with Anna</h1>
 
-          {booking === null ? (
+          {chat === null ? (
             <p className="chat__hint">Loading…</p>
-          ) : booking === 'missing' || !booking.conversationId ? (
+          ) : chat === 'none' ? (
             <p className="chat__hint">
               Your chat is not open yet. Anna opens it once she has confirmed your
               transfer.
             </p>
           ) : (
-            <ChatPane
-              conversationId={booking.conversationId}
-              myUid={user!.uid}
-              otherLabel="Anna"
-            />
+            <>
+              {chat.status === 'closed' ? (
+                <p className="notice">
+                  This chat is closed, so you can read it but not reply. Book
+                  another session and Anna will reopen it — you will come back to
+                  this same conversation.
+                </p>
+              ) : null}
+              <ChatPane
+                conversationId={chat.conversationId}
+                myUid={user!.uid}
+                otherLabel="Anna"
+                readOnly={chat.status === 'closed'}
+              />
+            </>
           )}
         </div>
       </div>

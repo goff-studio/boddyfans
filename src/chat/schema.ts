@@ -7,7 +7,7 @@
  *     createdAt, lastMessageAt
  *
  *   conversations/{conversationId}/messages/{messageId}
- *     senderUid, sentAt, text
+ *     senderUid, sentAt, text | image
  *
  * The conversation deliberately stores no message preview. A preview would be
  * a copy of message text living outside the messages collection, which would
@@ -27,6 +27,11 @@ export type ConversationDoc = {
   lastMessageAt: unknown
 }
 
+/**
+ * A message carries exactly one of `text` or `image` — never both, and never
+ * neither. Keeping it strict keeps the rules readable and the rendering
+ * unambiguous; a caption would need a third case in both.
+ */
 export type MessageDoc = {
   senderUid: string
   sentAt: unknown
@@ -35,7 +40,9 @@ export type MessageDoc = {
    * SealedMessage shape from ./crypto — see the ENCRYPTION SEAM markers in
    * ./client.ts.
    */
-  text: string
+  text?: string
+  /** Base64 image, stored inline because there is no Cloud Storage. */
+  image?: { contentType: string; size: number; dataBase64: string }
 }
 
 /** A message ready to render. */
@@ -43,8 +50,10 @@ export type ChatMessage = {
   id: string
   senderUid: string
   sentAt: Date | null
-  /** Null when the body is unreadable — never fall back to raw bytes. */
+  /** Null for an image message, or when the body is unreadable. */
   text: string | null
+  /** Present only on an image message. */
+  image: { contentType: string; dataBase64: string } | null
   failed: boolean
 }
 

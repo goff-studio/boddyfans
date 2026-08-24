@@ -401,6 +401,63 @@ depends on.
 If the list shows "Could not load bookings", the rules from step 4 are not
 published — the browser console carries the underlying Firestore error.
 
+### Images in chat
+
+Anna can attach an image; clients cannot. There is no Cloud Storage, so images
+live inside the message document as base64 — which sets a hard ceiling, because
+a Firestore document is capped at 1 MiB *including* field names and base64
+inflates bytes by 4/3.
+
+`src/chat/images.ts` owns that arithmetic and is shared with receipts. Anything
+picked is downscaled and re-encoded as JPEG, stepping quality down until it
+fits; anything that still will not fit is refused with a reason, never
+truncated. Verified with a 13.2MB PNG: it lands at 455KB raw / 607K base64
+characters.
+
+Budgets, which must stay in step with the caps in `firestore.rules`:
+
+| | Max edge | Raw bytes | base64 chars |
+| --- | --- | --- | --- |
+| Chat image | 1200px | 600,000 | 800,000 |
+| Receipt | 1400px | 700,000 | 933,336 |
+
+A message carries **exactly one** of `text` or `image` — never both, never
+neither. A caption would need a third case in the rules and in the rendering.
+
+To let clients send images too, drop the `isAdmin()` term from
+`validImageMessage()` in `firestore.rules` and pass `canSendImages` to their
+`ChatPane`. Nothing else changes.
+
+> An earlier receipt cap of 900,000 raw bytes was arithmetically impossible:
+> it encodes to 1.2M characters, past the 1 MiB document limit. It only ever
+> passed testing because the fixture was a 1×1 pixel.
+
+### Closing a chat, and returning clients
+
+Email is **required** on a booking, because it is the identity key that
+reconnects a returning client. `clientsByEmail/{email}` maps a lowercased
+address to its client; it is admin-only, since the keys are personal data and an
+open read would let anyone test whether an address is a client.
+
+The cycle:
+
+1. Anna closes a chat when the sessions are done. The client can still **read**
+   the history but not write. Anna still can, so she can leave a closing note.
+2. The client books and pays again.
+3. Anna approves. The email matches, so the client is **reconnected**: same
+   account, same conversation, reopened — and *no new credentials*, because
+   their existing login still works. Rotating it silently would lock them out of
+   a chat they can already see. The approve screen says so instead of showing a
+   password.
+
+Enforcement is in the rules, not the UI: a client's message create requires the
+conversation's `status` to be `open`. A missing status reads as open, so
+conversations created before this existed keep working.
+
+The client's chat is found through `users/{uid}.conversationId` rather than a
+query over bookings — a returning client has several bookings, so picking the
+newest would need a composite index it does not otherwise need.
+
 ### Reissuing a client's login
 
 There is no password reset: a username has no inbox, and changing another

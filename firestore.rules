@@ -55,12 +55,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Readable by anyone so a username collision can be detected before an
-    // account is created. Holds a uid and nothing else.
+    // Only the admin creates accounts, so the collision check runs in her
+    // session — this does not need to be world-readable, and leaving it open
+    // would expose the client list.
     match /usernames/{username} {
-      allow read: if true;
+      allow read: if isAdmin();
       allow create: if isAdmin();
       allow update, delete: if false;
+    }
+
+    // Maps a booking email to the client it belongs to, so a returning client
+    // is reconnected to their existing account and chat instead of getting a
+    // second one. Admin-only: the keys are personal data, and an open read
+    // would let anyone test whether an address is a client.
+    match /clientsByEmail/{email} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
     // -------------------------------------------------------------- bookings
@@ -75,13 +86,19 @@ service cloud.firestore {
                  'name', 'email', 'trackSlug', 'preferredAt',
                  'reference', 'status', 'createdAt'
                ])
-          && d.keys().hasAll(['name', 'trackSlug', 'preferredAt', 'reference', 'status', 'createdAt'])
+          && d.keys().hasAll([
+               'name', 'email', 'trackSlug', 'preferredAt', 'reference', 'status', 'createdAt'
+             ])
           && d.status == 'pending'
           && d.name is string && d.name.size() >= 1 && d.name.size() <= 80
           && d.trackSlug is string && d.trackSlug.size() <= 40
           && d.reference is string && d.reference.size() <= 120
           && d.preferredAt is string && d.preferredAt.size() <= 40
-          && (!('email' in d) || (d.email is string && d.email.size() <= 200))
+          // Email is the identifier that reconnects a returning client to their
+          // existing chat, so it is required rather than optional.
+          && d.email is string
+          && d.email.size() >= 3 && d.email.size() <= 200
+          && d.email.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$')
           && d.createdAt == request.time;
       }
 
@@ -108,8 +125,10 @@ service cloud.firestore {
           return d.keys().hasOnly(['contentType', 'size', 'dataBase64', 'createdAt'])
             && d.contentType is string
             && d.contentType in ['image/png', 'image/jpeg', 'image/webp', 'application/pdf']
-            && d.size is int && d.size > 0 && d.size <= 900000
-            && d.dataBase64 is string && d.dataBase64.size() <= 1250000
+            && d.size is int && d.size > 0 && d.size <= 700000
+            && d.dataBase64 is string
+            && d.dataBase64.size() > 0
+            && d.dataBase64.size() <= 933336
             && d.createdAt == request.time;
         }
         allow create: if docId == 'receipt' && validReceipt();
@@ -127,16 +146,54 @@ service cloud.firestore {
 
       match /messages/{messageId} {
 
-        function validMessage() {
+        // A message carries exactly one of `text` or `image`.
+        //
+        // Image size caps are arithmetic, not taste: there is no Cloud Storage,
+        // so images live in the document as base64, and a Firestore document is
+        // capped at 1 MiB including field names. base64 inflates by 4/3, so
+        // 600_000 raw bytes -> 800_000 characters, which fits with room to
+        // spare. Keep these in step with MAX_CHAT_IMAGE_BYTES in
+        // src/chat/images.ts.
+        function validTextMessage() {
           let d = request.resource.data;
           return d.keys().hasOnly(['senderUid', 'sentAt', 'text'])
-            && d.senderUid == request.auth.uid
-            && d.text is string && d.text.size() >= 1 && d.text.size() <= 4000
-            && d.sentAt == request.time;
+            && d.text is string && d.text.size() >= 1 && d.text.size() <= 4000;
+        }
+
+        // Images are the admin's to send. To let clients send them too, drop
+        // the isAdmin() term — nothing else needs to change.
+        function validImageMessage() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['senderUid', 'sentAt', 'image'])
+            && isAdmin()
+            && d.image.keys().hasOnly(['contentType', 'size', 'dataBase64'])
+            && d.image.contentType in ['image/jpeg', 'image/png', 'image/webp']
+            && d.image.size is int && d.image.size > 0 && d.image.size <= 600000
+            && d.image.dataBase64 is string
+            && d.image.dataBase64.size() > 0
+            && d.image.dataBase64.size() <= 800000;
+        }
+
+        function validMessage() {
+          let d = request.resource.data;
+          return d.senderUid == request.auth.uid
+            && d.sentAt == request.time
+            && (validTextMessage() || validImageMessage());
+        }
+
+        // Anna closes a chat when the sessions are done. She can still write
+        // (a closing note, or the next steps); the client cannot, until a new
+        // booking is approved and reopens it. Missing status reads as 'open',
+        // so conversations created before this existed keep working.
+        function conversationOpen() {
+          return get(/databases/$(database)/documents/conversations/$(conversationId))
+                   .data.get('status', 'open') == 'open';
         }
 
         allow read: if isParticipant(conversationId);
-        allow create: if isParticipant(conversationId) && validMessage();
+        allow create: if isParticipant(conversationId)
+          && validMessage()
+          && (isAdmin() || conversationOpen());
         // A sent message is a record. Nobody edits or removes one, Anna
         // included — otherwise the transcript is not evidence of anything.
         allow update, delete: if false;

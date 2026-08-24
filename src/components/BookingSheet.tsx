@@ -78,7 +78,10 @@ export function BookingSheet({
     setStep(next)
   }
 
-  const canLeaveStep1 = name.trim().length > 0 && when.length > 0
+  // Email is required now: it is the identifier that reconnects a returning
+  // client to their existing chat rather than opening a second one.
+  const canLeaveStep1 =
+    name.trim().length > 0 && when.length > 0 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
 
   async function submit() {
     if (!receipt || sending) return
@@ -110,11 +113,11 @@ export function BookingSheet({
 
       await submitBooking({
         name,
-        email: email.trim() || undefined,
+        email: email.trim(),
         trackSlug: track.slug,
         preferredAt: when,
         reference,
-        receipt: prepared.receipt,
+        receipt: prepared.image,
       })
       setSent(true)
     } catch (e) {
@@ -309,15 +312,20 @@ function StepDetails({
       </label>
 
       <label className="field">
-        <span className="field__label">Email (optional)</span>
+        <span className="field__label">Email</span>
         <input
           className="field__input"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="so Anna can reach you outside the chat"
+          placeholder="you@example.com"
           autoComplete="email"
+          required
         />
+        <span className="field__hint">
+          Used to reach you, and to bring you back to the same chat if you book
+          again.
+        </span>
       </label>
 
       <div className="booking__actions">
