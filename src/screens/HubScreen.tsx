@@ -64,7 +64,7 @@ export function HubScreen({
           <Wordmark inverted />
           <MenuButton open={menuOpen} onClick={onOpenMenu} inverted />
         </div>
-        <h1 className="hub__title">milanese physiotherapeutic training atelier.</h1>
+        <h1 className="hub__title">bolognese physiotherapeutic training atelier.</h1>
         <p className="hub__sub">
           Select an atelier track below to see how clinical physiotherapy meets
           deliberate form.
@@ -156,7 +156,7 @@ export function HubScreen({
         ))}
       </motion.ul>
 
-      <footer className="hub__footer">ANNA NEFEDOVA · ATELIER · MILAN</footer>
+      <footer className="hub__footer">ANNA NEFEDOVA · ATELIER · BOLOGNA</footer>
     </div>
   )
 }

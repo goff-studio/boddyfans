@@ -74,7 +74,7 @@ export function Footer() {
     <footer className="footer">
       <span className="footer__name">ANNA NEFEDOVA</span>
       <span className="footer__meta">PHYSIOTHERAPIST · COACH · TRAINER</span>
-      <span className="footer__meta">© 2026 MILAN, ITALY</span>
+      <span className="footer__meta">© 2026 BOLOGNA, ITALY</span>
     </footer>
   )
 }

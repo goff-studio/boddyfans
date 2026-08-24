@@ -8,21 +8,30 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "build:artifact": "VITE_HASH_ROUTER=1 vite build --base ./ && mkdir -p dist-artifact && node scripts/build-singlefile.mjs"
+    "build:artifact": "VITE_HASH_ROUTER=1 VITE_EMBEDDED=1 vite build --base ./ && mkdir -p dist-artifact && node scripts/build-singlefile.mjs",
+    "test": "npm run test:crypto && npm run test:rules",
+    "emulators": "firebase emulators:start --only auth,firestore",
+    "test:crypto": "esbuild src/chat/crypto.test.ts --bundle --platform=node --format=esm --target=node20 --outfile=node_modules/.tmp/crypto.test.mjs --log-level=warning && node --test node_modules/.tmp/crypto.test.mjs",
+    "test:rules": "firebase emulators:exec --only firestore \"esbuild src/chat/rules.test.ts --bundle --packages=external --platform=node --format=esm --target=node20 --outfile=node_modules/.tmp/rules.test.mjs --log-level=warning && node --test node_modules/.tmp/rules.test.mjs\"",
+    "seed": "node scripts/seed-emulator.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/inter-tight": "^5.3.0",
+    "firebase": "^12.18.0",
     "framer-motion": "^13.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "esbuild": "^0.28.2",
+    "firebase-tools": "^13.35.1",
     "oxlint": "^1.75.0",
     "sharp": "^0.35.3",
     "typescript": "~6.0.2",

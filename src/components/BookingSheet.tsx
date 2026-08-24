@@ -13,12 +13,14 @@ import { Wordmark } from './Chrome'
  * payment step is a task the person leaves the page to do, so it needs to be
  * a place they can come back to, not a field buried in a scroll.
  *
- * FRONT END ONLY. Nothing is transmitted or stored; `onSubmit` is where a
- * backend would go. The confirmation step is presentation, not proof of
- * delivery.
+ * Submitting writes the booking to Firestore as `pending` and attaches the
+ * receipt. Anna reviews it in the panel and approves, which is what creates the
+ * client's account and opens their chat — nothing here grants access.
  */
 
 const STEPS = ['Your session', 'Transfer', 'Receipt'] as const
+
+const EMBEDDED = import.meta.env.VITE_EMBEDDED === '1'
 
 const MAX_RECEIPT_BYTES = 10 * 1024 * 1024
 const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'application/pdf']
@@ -37,8 +39,11 @@ export function BookingSheet({
   const [direction, setDirection] = useState<1 | -1>(1)
   const [name, setName] = useState('')
   const [when, setWhen] = useState('')
+  const [email, setEmail] = useState('')
   const [receipt, setReceipt] = useState<File | null>(null)
   const [receiptError, setReceiptError] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
 
   const account = accountFor(track.slug)
@@ -61,8 +66,9 @@ export function BookingSheet({
   useEffect(() => {
     if (open) return
     const t = window.setTimeout(() => {
-      setStep(0); setDirection(1); setName(''); setWhen('')
+      setStep(0); setDirection(1); setName(''); setWhen(''); setEmail('')
       setReceipt(null); setReceiptError(null); setSent(false)
+      setSending(false); setSendError(null)
     }, 250)
     return () => window.clearTimeout(t)
   }, [open])
@@ -73,6 +79,52 @@ export function BookingSheet({
   }
 
   const canLeaveStep1 = name.trim().length > 0 && when.length > 0
+
+  async function submit() {
+    if (!receipt || sending) return
+
+    // The single-file preview has no network and no backend. Showing the
+    // confirmation is the honest end of the flow there, and the early return
+    // keeps the Firebase imports below out of that bundle entirely.
+    if (EMBEDDED) {
+      setSent(true)
+      return
+    }
+
+    setSending(true)
+    setSendError(null)
+    try {
+      // Imported here rather than at module scope so the Firebase chunk only
+      // loads when somebody actually books.
+      const [{ prepareReceipt }, { submitBooking }] = await Promise.all([
+        import('../chat/receipt'),
+        import('../chat/bookings'),
+      ])
+
+      const prepared = await prepareReceipt(receipt)
+      if (!prepared.ok) {
+        setReceiptError(prepared.reason)
+        setSending(false)
+        return
+      }
+
+      await submitBooking({
+        name,
+        email: email.trim() || undefined,
+        trackSlug: track.slug,
+        preferredAt: when,
+        reference,
+        receipt: prepared.receipt,
+      })
+      setSent(true)
+    } catch {
+      setSendError(
+        'That did not go through. Check your connection and try again — your details are still here.',
+      )
+    } finally {
+      setSending(false)
+    }
+  }
 
   function pickReceipt(file: File | undefined) {
     if (!file) return
@@ -162,6 +214,8 @@ export function BookingSheet({
                           setName={setName}
                           when={when}
                           setWhen={setWhen}
+                          email={email}
+                          setEmail={setEmail}
                           canContinue={canLeaveStep1}
                           onContinue={() => go(1)}
                         />
@@ -179,7 +233,9 @@ export function BookingSheet({
                           onPick={pickReceipt}
                           onClear={() => setReceipt(null)}
                           onBack={() => go(1)}
-                          onSubmit={() => setSent(true)}
+                          onSubmit={submit}
+                          sending={sending}
+                          sendError={sendError}
                         />
                       )}
                     </motion.div>
@@ -197,12 +253,14 @@ export function BookingSheet({
 /* --- Step 01 -------------------------------------------------------------- */
 
 function StepDetails({
-  name, setName, when, setWhen, canContinue, onContinue,
+  name, setName, when, setWhen, email, setEmail, canContinue, onContinue,
 }: {
   name: string
   setName: (v: string) => void
   when: string
   setWhen: (v: string) => void
+  email: string
+  setEmail: (v: string) => void
   canContinue: boolean
   onContinue: () => void
 }) {
@@ -245,6 +303,18 @@ function StepDetails({
         <span className="field__hint">
           Anna confirms by reply — if the slot is taken she'll offer the nearest one.
         </span>
+      </label>
+
+      <label className="field">
+        <span className="field__label">Email (optional)</span>
+        <input
+          className="field__input"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="so Anna can reach you outside the chat"
+          autoComplete="email"
+        />
       </label>
 
       <div className="booking__actions">
@@ -337,7 +407,7 @@ function StepTransfer({
 /* --- Step 03 -------------------------------------------------------------- */
 
 function StepReceipt({
-  receipt, error, onPick, onClear, onBack, onSubmit,
+  receipt, error, onPick, onClear, onBack, onSubmit, sending, sendError,
 }: {
   receipt: File | null
   error: string | null
@@ -345,6 +415,8 @@ function StepReceipt({
   onClear: () => void
   onBack: () => void
   onSubmit: () => void
+  sending: boolean
+  sendError: string | null
 }) {
   const input = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -405,14 +477,15 @@ function StepReceipt({
       </div>
 
       {error ? <p className="field__error" role="alert">{error}</p> : null}
+      {sendError ? <p className="field__error" role="alert">{sendError}</p> : null}
 
       <div className="booking__actions">
-        <Pressable className="ghostbtn" onClick={onBack}>
+        <Pressable className="ghostbtn" onClick={onBack} disabled={sending}>
           <span className="ghostbtn__arrow" aria-hidden="true">←</span>
           <span>BACK</span>
         </Pressable>
-        <Pressable className="cta" onClick={onSubmit} disabled={!receipt}>
-          <span>SEND REQUEST</span>
+        <Pressable className="cta" onClick={onSubmit} disabled={!receipt || sending}>
+          <span>{sending ? 'SENDING…' : 'SEND REQUEST'}</span>
           <span className="cta__arrow" aria-hidden="true">→</span>
         </Pressable>
       </div>
@@ -438,8 +511,9 @@ function Confirmation({
     <div className="form">
       <h1 className="booking__title">Thanks, {name.trim()}.</h1>
       <p className="booking__lede">
-        Anna will confirm {pretty ? <strong>{pretty}</strong> : 'your slot'} by reply.
-        If anything needs moving, she'll offer the nearest time.
+        Anna will check the transfer and confirm{' '}
+        {pretty ? <strong>{pretty}</strong> : 'your slot'}. Once she does, you'll
+        get a username and password for your private chat with her.
       </p>
       <div className="booking__actions">
         <Pressable className="cta" onClick={onClose}>

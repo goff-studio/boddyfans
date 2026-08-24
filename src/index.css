@@ -1208,3 +1208,359 @@ ul {
     height: 52px;
   }
 }
+
+/* ===========================================================================
+   Panel: login, admin, client chat. Same tokens as the marketing site, but
+   laid out for scanning and operating rather than reading.
+   =========================================================================== */
+
+.auth,
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--bg);
+}
+
+.auth__body,
+.panel__body {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  padding: 48px var(--gutter) 72px;
+}
+
+.auth__form {
+  width: 100%;
+  max-width: 380px;
+}
+
+.panel__inner {
+  width: 100%;
+  max-width: 760px;
+}
+
+.auth__note {
+  margin: 28px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--meta);
+}
+
+.panel__who {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--meta);
+}
+
+/* Full-viewport states: loading, no access. */
+.panelState {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 48px var(--gutter);
+  max-width: 34rem;
+  margin: 0 auto;
+}
+
+.panelState__title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.panelState__text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--body);
+}
+
+/* --- filter tabs --------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 26px 0 22px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tabs__tab {
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--meta);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition: color var(--dur-micro) ease, border-color var(--dur-micro) ease;
+}
+
+.tabs__tab--on {
+  color: var(--ink);
+  border-color: var(--rule);
+}
+
+/* --- bookings list ------------------------------------------------------- */
+
+.blist {
+  display: flex;
+  flex-direction: column;
+}
+
+.brow {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--rule);
+  transition: background var(--dur-micro) ease;
+}
+
+.brow__name {
+  font-family: var(--display);
+  font-size: 20px;
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.brow__track,
+.brow__when {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--meta);
+  white-space: nowrap;
+}
+
+.brow__go {
+  color: var(--meta);
+  transition: transform var(--dur-micro) var(--ease-out), color var(--dur-micro) ease;
+}
+
+/* Status is encoded in colour AND in the word, so it survives a greyscale
+   print and does not rely on hue alone. */
+.chip {
+  padding: 4px 9px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.chip--pending {
+  color: #8a4a1d;
+  background: #fdeade;
+}
+
+.chip--approved {
+  color: #1f5c3a;
+  background: #dff0e5;
+}
+
+.chip--declined {
+  color: #6b6b6b;
+  background: #ececec;
+}
+
+/* --- sections ------------------------------------------------------------ */
+
+.section {
+  margin-top: 40px;
+  padding-top: 26px;
+  border-top: 1px solid var(--rule);
+}
+
+.section__title {
+  margin: 0 0 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--meta);
+}
+
+.receipt {
+  max-width: 100%;
+  max-height: 460px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+
+.receipt--pdf {
+  width: 100%;
+  height: 460px;
+}
+
+/* --- chat ---------------------------------------------------------------- */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat__scroll {
+  max-height: 52vh;
+  min-height: 180px;
+  overflow-y: auto;
+  padding: 4px 2px 8px;
+  /* Anchors growth to the bottom, so a new message does not shove the
+     transcript upward while you are reading it. */
+  overflow-anchor: auto;
+}
+
+.chat__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat__hint {
+  margin: 0;
+  padding: 22px 0;
+  font-size: 14px;
+  color: var(--meta);
+}
+
+.chat__error {
+  margin-top: 8px;
+}
+
+.bubble {
+  align-self: flex-start;
+  max-width: min(78%, 460px);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 11px 15px;
+  background: var(--surface, #f2eee8);
+  border-radius: 16px 16px 16px 4px;
+  will-change: transform;
+}
+
+.bubble--mine {
+  align-self: flex-end;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 16px 16px 4px 16px;
+}
+
+.bubble__text {
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bubble__failed {
+  color: var(--coral);
+  font-style: italic;
+}
+
+.bubble__time {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.5;
+}
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.composer__input {
+  flex: 1 1 auto;
+  min-height: 46px;
+  max-height: 160px;
+  padding: 13px 0;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  resize: vertical;
+  transition: border-color var(--dur-micro) ease;
+}
+
+.composer__input::placeholder {
+  color: #c4c0ba;
+}
+
+.composer__input:focus {
+  outline: none;
+  border-bottom-color: var(--coral);
+}
+
+.composer__send {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .brow:hover {
+    background: #f4f0ea;
+  }
+
+  .brow:hover .brow__go {
+    color: var(--ink);
+    transform: translateX(3px);
+  }
+
+  .tabs__tab:hover {
+    color: var(--ink);
+  }
+}
+
+@media (max-width: 900px) {
+  .auth__body,
+  .panel__body {
+    padding: 28px var(--gutter) 56px;
+  }
+
+  /* Name and status on the first line, meta on the second. */
+  .brow {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px 12px;
+  }
+
+  .brow__track {
+    grid-column: 2;
+  }
+
+  .brow__when {
+    grid-column: 2 / span 2;
+  }
+
+  .chat__scroll {
+    max-height: none;
+  }
+
+  .bubble {
+    max-width: 88%;
+  }
+
+  .composer__send {
+    width: auto;
+    padding: 0 18px;
+  }
+}

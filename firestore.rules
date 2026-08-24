@@ -1,0 +1,151 @@
+rules_version = '2';
+
+// Security model
+// --------------
+// Public sign-up cannot be disabled without the Admin SDK, which the Spark plan
+// does not provide. So anyone holding the (public) web config can create an auth
+// account. Everything below is written on that assumption:
+//
+//   BEING SIGNED IN GRANTS NOTHING.
+//
+// Access needs either an admins/{uid} document or a users/{uid} profile, and
+// only an admin can write either. A self-registered account has neither and can
+// read nothing. Never loosen a rule to a bare `isSignedIn()`.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Provisioned by Anna, as opposed to merely authenticated.
+    function isProvisioned() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isParticipant(conversationId) {
+      return isSignedIn()
+        && request.auth.uid in
+             get(/databases/$(database)/documents/conversations/$(conversationId))
+               .data.participants;
+    }
+
+    // ---------------------------------------------------------------- admins
+    // Membership is granted by hand in the console. Nothing in the app can
+    // write here, so a compromised session cannot escalate itself.
+    match /admins/{uid} {
+      // Own record, or any record if you are already an admin. A client needs
+      // to be able to ask "am I an admin?" without the read being denied —
+      // a denied read is an error, and errors are hard to tell from "no".
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if false;
+    }
+
+    // ----------------------------------------------------------------- users
+    match /users/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Readable by anyone so a username collision can be detected before an
+    // account is created. Holds a uid and nothing else.
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // -------------------------------------------------------------- bookings
+    match /bookings/{bookingId} {
+
+      // The public form posts here unauthenticated, so the payload is pinned
+      // rather than trusted. Note what is absent: a caller cannot set status,
+      // clientUid or conversationId, so nobody can self-approve.
+      function validNewBooking() {
+        let d = request.resource.data;
+        return d.keys().hasOnly([
+                 'name', 'email', 'trackSlug', 'preferredAt',
+                 'reference', 'status', 'createdAt'
+               ])
+          && d.keys().hasAll(['name', 'trackSlug', 'preferredAt', 'reference', 'status', 'createdAt'])
+          && d.status == 'pending'
+          && d.name is string && d.name.size() >= 1 && d.name.size() <= 80
+          && d.trackSlug is string && d.trackSlug.size() <= 40
+          && d.reference is string && d.reference.size() <= 120
+          && d.preferredAt is string && d.preferredAt.size() <= 40
+          && (!('email' in d) || (d.email is string && d.email.size() <= 200))
+          && d.createdAt == request.time;
+      }
+
+      // Anna may only move a booking forward, and may not rewrite its history.
+      function validAdminUpdate() {
+        let d = request.resource.data;
+        return d.name == resource.data.name
+          && d.trackSlug == resource.data.trackSlug
+          && d.createdAt == resource.data.createdAt
+          && d.status in ['pending', 'approved', 'declined'];
+      }
+
+      allow create: if validNewBooking();
+      allow read: if isAdmin()
+        || (isProvisioned() && resource.data.get('clientUid', '') == request.auth.uid);
+      allow update: if isAdmin() && validAdminUpdate();
+      allow delete: if false;
+
+      // Bank receipts. Kept in a subcollection so listing bookings never pulls
+      // a few hundred KB of base64 per row, and readable only by Anna.
+      match /private/{docId} {
+        function validReceipt() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['contentType', 'size', 'dataBase64', 'createdAt'])
+            && d.contentType is string
+            && d.contentType in ['image/png', 'image/jpeg', 'image/webp', 'application/pdf']
+            && d.size is int && d.size > 0 && d.size <= 900000
+            && d.dataBase64 is string && d.dataBase64.size() <= 1250000
+            && d.createdAt == request.time;
+        }
+        allow create: if docId == 'receipt' && validReceipt();
+        allow read: if isAdmin();
+        allow update, delete: if false;
+      }
+    }
+
+    // --------------------------------------------------------- conversations
+    match /conversations/{conversationId} {
+      allow read: if isSignedIn()
+        && request.auth.uid in resource.data.participants;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+
+      match /messages/{messageId} {
+
+        function validMessage() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['senderUid', 'sentAt', 'text'])
+            && d.senderUid == request.auth.uid
+            && d.text is string && d.text.size() >= 1 && d.text.size() <= 4000
+            && d.sentAt == request.time;
+        }
+
+        allow read: if isParticipant(conversationId);
+        allow create: if isParticipant(conversationId) && validMessage();
+        // A sent message is a record. Nobody edits or removes one, Anna
+        // included — otherwise the transcript is not evidence of anything.
+        allow update, delete: if false;
+      }
+    }
+
+    // Anything not matched above is denied. Keep it that way.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

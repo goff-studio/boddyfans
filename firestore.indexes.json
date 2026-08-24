@@ -1,0 +1,5 @@
+{
+  "comment": "No composite indexes required. The admin list uses a single orderBy('createdAt') and filters by status in memory, so there is nothing to deploy here. Add an entry if a query ever combines a where() with a different orderBy().",
+  "indexes": [],
+  "fieldOverrides": []
+}

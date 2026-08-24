@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local environment (Firebase config, site URL)
+.env
+.env.local
+.env.*.local
+
+# Generated preview bundle
+dist-artifact

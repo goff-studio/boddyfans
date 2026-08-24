@@ -102,19 +102,218 @@ Each booking generates a transfer reference (`TRAIN · GIULIA`) shown first and
 copyable. Manual reconciliation depends on it: without a reference in the
 description, matching payments to bookings is done by eye against amounts.
 
-**This is front end only.** Nothing is transmitted or stored — no backend, no
-upload target, no email. The confirmation step is presentation, not proof of
-delivery, and `onSubmit` in `BookingSheet` is where a real submission would go.
-Do not put it in front of a paying client in this state.
+Submitting now writes to Firestore — see **Admin panel and per-booking chat**
+below. The single-file preview build still stops at the confirmation, since it
+has no backend to write to.
 
-Two things still need a decision:
+**No amount is shown anywhere**, because no price was given. A transfer screen
+without a figure is hard to act on: this needs either per-track pricing or a
+line telling the payer what to send.
 
-- **No amount is shown**, because no price was given. A transfer screen without
-  a figure is hard to act on, so this needs either per-track pricing or a line
-  telling the payer what to send.
-- **Receipts are bank documents.** Once there is somewhere to upload them, they
-  become sensitive personal data with the retention and access questions that
-  implies — worth settling before the backend, not after.
+## SEO and share cards
+
+Set the domain first — nothing absolute works without it:
+
+```bash
+cp .env.example .env    # then edit VITE_SITE_URL
+```
+
+If it is unset the build warns, omits `canonical`/`og:url` rather than emitting
+a wrong one, and falls back to `https://example.invalid` (a reserved TLD, so it
+can never resolve or point at somebody else's site).
+
+**Per-route HTML, not just runtime tags.** `src/seo.ts` holds the metadata for
+all six routes; the Vite plugin in `vite.config.ts` bakes a real `<head>` into
+one HTML file per route (`dist/train/index.html` and so on), and `src/useSeo.ts`
+keeps the head in step during client-side navigation. Both exist because they
+serve different readers: Google executes JavaScript, but Facebook, LinkedIn,
+WhatsApp and Slack do not — a link shared to any of those reads only the HTML
+it is served, so per-route cards need the static files.
+
+Descriptions are the pages' own body copy rather than written-for-crawlers
+filler. Titles run 46–57 characters, descriptions 98–153.
+
+Also emitted: `sitemap.xml` (set `BUILD_DATE=$(date +%F)` to include `lastmod`),
+`robots.txt`, and `Physiotherapy` schema.org JSON-LD on the hub with the five
+tracks as `Offer`/`Service` entries.
+
+**Share cards** are generated, not hand-exported — 1200×630, in the site's own
+design language, one per track plus a default:
+
+```bash
+python3 scripts/prep-og-fonts.py && python3 scripts/build-og.py
+```
+
+The first script converts the shipped Inter woff2 files into static TTFs
+(fontconfig cannot read woff2, and the variable axis needs pinning); the second
+composes the cards with PIL, which loads those TTFs directly so the real brand
+faces are used. Re-run both after changing a photo, a headline or the city, and
+commit the PNGs in `public/og/`.
+
+### What would move the needle next
+
+- **A real street address, phone number and opening hours.** The JSON-LD
+  carries only `addressLocality: Bologna` because that is all we actually know.
+  For a local practice these are the highest-value additions, plus a Google
+  Business Profile pointing at the same domain.
+- **Italian-language pages.** The copy is English while the practice is in
+  Bologna; most local search will be in Italian (`fisioterapista Bologna`).
+  That needs `hreflang` and translated routes, not just keywords.
+- `<meta name="keywords">` is included because it was asked for, but no major
+  search engine has used it for ranking in well over a decade. The work that
+  counts is above it.
+
+## Admin panel and per-booking chat
+
+Anna signs in, reviews bookings, approves one, and that opens a private chat
+with the client. Firebase project `body-fans`, **Spark (free) plan — no Cloud
+Functions**, which is what shapes the design below.
+
+```bash
+cp .env.example .env      # fill in the VITE_FIREBASE_* values
+npm run emulators         # auth + firestore, locally
+npm run seed              # creates Anna and her admins/ document (emulator only)
+npm test                  # crypto (17) + firestore rules (25)
+```
+
+The emulators and the test suite need **no Firebase login** — they run entirely
+locally against `firestore.rules`, so you can develop and verify rule changes
+without console or CLI access to the project.
+
+Set `VITE_USE_EMULATORS=1` in `.env` to point the app at the local emulators.
+It ships as `0`, so an unconfigured checkout talks to the real project rather
+than silently appearing broken.
+
+### The flow
+
+1. A visitor books from any track page. That writes `bookings/{id}` as
+   `pending`, unauthenticated, plus the receipt in a subcollection.
+2. Anna opens `/login`, then `/admin`, and sees pending bookings first.
+3. She opens one, checks the transfer receipt, and hits **Approve & create
+   access**. That mints the client's account and opens the conversation.
+4. The password is shown **once** and never stored. She passes it on; if it is
+   lost she issues a new one.
+5. The client signs in at `/login` with their username and lands on `/chat`.
+
+### Security model — read this before changing rules
+
+Public sign-up **cannot be disabled** without the Admin SDK, which Spark does
+not provide. Anyone holding the web config can create an auth account. So the
+rules are written on one principle:
+
+> **Being signed in grants nothing.**
+
+Access requires an `admins/{uid}` document or a `users/{uid}` profile, and only
+an admin can write either. A self-registered account has neither and can read
+nothing. `src/chat/rules.test.ts` pins this down — the test named *a
+merely-authenticated account can read nothing* is the one that justifies leaving
+sign-up open. If it ever goes red, the project is open.
+
+Two related notes:
+
+- **The `apiKey` is not a secret.** Every Firebase web app ships it; it names
+  the project and authorises nothing. Rotating it protects nothing. The rules
+  are the boundary.
+- **Sent messages are immutable**, for Anna too. A transcript that can be edited
+  is not evidence of anything.
+
+### Spark-plan trade-offs
+
+| Constraint | What we do instead | Proper fix |
+| --- | --- | --- |
+| No Admin SDK | Accounts created client-side via a throwaway secondary Firebase app, which leaves Anna's session intact (`createAccountOutOfBand`) | Callable Function; then sign-up can be disabled outright |
+| No custom claims | Admin is an `admins/{uid}` document, checked with `exists()` in rules | Custom claim on the token |
+| Cloud Storage needs Blaze | Receipts are downscaled to JPEG and stored as base64 in a subcollection, capped at 900KB (`src/chat/receipt.ts`) | Cloud Storage; only `prepareReceipt` changes |
+| Open create rule on `bookings` | Payload is pinned field-by-field: an anonymous caller cannot set `status`, `clientUid` or `conversationId`, so nobody can self-approve | App Check for rate limiting |
+
+### Encryption
+
+Messages are stored in **plaintext**, by decision. `src/chat/crypto.ts` holds a
+tested AES-256-GCM implementation (17 tests, including AAD binding so a
+ciphertext cannot be moved between conversations) for when that reverses. The
+two call sites are marked `ENCRYPTION SEAM` in `src/chat/client.ts`, and `text`
+in `firestore.rules` would widen to the sealed shape.
+
+The conversation document deliberately stores no message preview — that would be
+message text living outside the messages collection, defeating encryption the
+day it comes back.
+
+### Bundle
+
+The marketing entry must not pay for Firebase. It is loaded through
+`src/PanelRoutes.tsx`, imported lazily behind a build-time constant, so:
+
+- marketing entry: **121.8KB gzipped**, zero Firebase
+- Firebase chunk: 162KB gzipped, fetched only on the panel or a booking submit
+- the single-file preview build excludes it entirely — it has no network under
+  the artifact CSP, and the API key stays out of a shareable file
+
+If you add a Firebase import to anything on the marketing path, check
+`dist/assets` afterwards.
+
+### One-time setup on the real project — console only, no CLI
+
+Everything below is done at <https://console.firebase.google.com> → project
+`body-fans`. **No Firebase CLI login is needed**, which matters if you only have
+web access to the account. The emulator equivalents are scripted in
+`npm run seed`; on the real project they are manual, because Spark has no
+Admin SDK.
+
+1. **Enable password sign-in.**
+   Authentication → Sign-in method → Email/Password → Enable → Save.
+   Leave "Email link" off.
+
+2. **Create Anna's account.**
+   Authentication → Users → Add user. Use a real address she controls, and a
+   strong password. Copy the **User UID** from the row — you need it next.
+
+3. **Grant her admin.** This is the step that actually gives access; nothing
+   else does.
+   Firestore Database → Start collection → Collection ID `admins` → Document ID
+   = *the UID you just copied* → add one field `createdAt` of type `timestamp`
+   → Save.
+
+   The document only has to exist. Its contents are never read.
+
+4. **Publish the rules.**
+   Firestore Database → **Rules** tab → select all → paste the entire contents
+   of `firestore.rules` from this repo → **Publish**.
+
+   Firestore ships with rules that deny everything (or, on a test database,
+   allow everything for 30 days). Neither is what you want, so do not skip this.
+   You can re-paste any time the file changes; publishing is instant and
+   versioned, and the console keeps a history you can roll back.
+
+5. **Point the app at the project.** Copy the six values from Project settings →
+   Your apps → SDK setup and configuration into `.env` as `VITE_FIREBASE_*`,
+   and leave `VITE_USE_EMULATORS=0`.
+
+No indexes to create: the admin list uses a single `orderBy` and filters by
+status in memory, precisely so there is no console step that a query silently
+depends on.
+
+**To check it worked:** open `/login`, sign in as Anna, and you should land on
+`/admin`. If you get "No access", step 3's document ID does not match her UID.
+If the list shows "Could not load bookings", the rules from step 4 are not
+published — the browser console carries the underlying Firestore error.
+
+### Rotating or reissuing a client's password
+
+There is no self-service reset (a username has no inbox). In the console:
+Authentication → Users → the client's row → ⋮ → Reset password, or delete the
+account and re-approve. If you delete an account, also remove its
+`usernames/{username}` document, or that username stays reserved.
+
+### Known gaps
+
+- **No notifications.** Anna only learns a message arrived by opening the panel.
+- **No password reset.** Synthetic username emails have no inbox, so Anna
+  reissues passwords. An optional real email is stored on the booking for when
+  that changes.
+- **A failed approval can orphan an auth account.** The account is created
+  before the batch (it is the one step that cannot be rolled back client-side).
+  An orphan has no `users/` profile, so it can read nothing — harmless, but it
+  holds the username's email address.
 
 ## Deviations from the designs
 
@@ -122,6 +321,11 @@ Two things still need a decision:
   appears in every header and is the only chrome on the desktop hub. Rather
   than ship a dead control, `src/components/Menu.tsx` builds a panel from the
   existing tokens and track list. Replace it when a real frame exists.
+- **The practice is in Bologna, the exports say Milan.** Changed on instruction
+  after the exports were made: the hub headline reads "bolognese", and both
+  footers read BOLOGNA. A visual diff against `designs/exports/` will flag
+  this — it is intentional, not drift. The Revolut branch address in
+  `payment.ts` stays Milano because that is the bank's address, not Anna's.
 - **Desktop hub has no header or footer**, matching the export — the columns
   are the whole page. The wordmark, intro copy and footer appear at ≤900px,
   also as drawn.

@@ -33,6 +33,9 @@ const REVOLUT: Account = {
   holder: 'ANNA NEFEDOVA',
   iban: 'IT14M0366901600067012549680',
   bic: 'REVOITM2',
+  // Revolut Bank UAB's own Italian branch address, exactly as the Revolut app
+  // reports it. This is the BANK's location, not the practice's — it stays
+  // Milano even though Anna is in Bologna. Editing it breaks the payee details.
   bank: 'Revolut Bank UAB · Via Dante 7, 20123 Milano (MI), Italy',
   extra: [
     { label: 'Revolut', value: '@anefedovafisio' },

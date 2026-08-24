@@ -6,17 +6,41 @@ import {
   Routes,
   useLocation,
 } from 'react-router-dom'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { ScreenTransition } from './motion/ScreenTransition'
 import { HubScreen } from './screens/HubScreen'
 import { TrackScreen } from './screens/TrackScreen'
 import { Menu } from './components/Menu'
+import { useSeo } from './useSeo'
 import '@fontsource-variable/inter-tight'
 import '@fontsource-variable/inter-tight/wght-italic.css'
 import '@fontsource-variable/inter'
 import './index.css'
 
+/**
+ * The single-file preview build has no network under the artifact CSP, so the
+ * Firebase-backed routes cannot work there.
+ *
+ * Vite substitutes this at build time, so the ternary below folds to a constant
+ * and Rollup drops the whole panel chunk from the embedded build. Declaring the
+ * lazy imports at module scope instead would keep them in the graph however the
+ * flag is set — which is exactly how Firebase ended up inside the artifact.
+ */
+const EMBEDDED = import.meta.env.VITE_EMBEDDED === '1'
+
+const PanelRoutes = EMBEDDED ? null : lazy(() => import('./PanelRoutes'))
+
+function Loading() {
+  return (
+    <div className="panelState">
+      <p className="panelState__text">Loading…</p>
+    </div>
+  )
+}
+
 function Shell() {
+  useSeo()
+
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
 
@@ -29,31 +53,35 @@ function Shell() {
     setMenuOpen(false)
   }
 
-  const chrome = {
-    menuOpen,
-    onOpenMenu: () => setMenuOpen((v) => !v),
-  }
+  const chrome = { menuOpen, onOpenMenu: () => setMenuOpen((v) => !v) }
+
+  // Kept as a fragment of <Route>s so the panel can splice them into its own
+  // flat <Routes>: React Router ranks static paths above `/:slug`, but only
+  // within one block.
+  const marketing = (
+    <>
+      <Route element={<ScreenTransition />}>
+        <Route path="/" element={<HubScreen {...chrome} />} />
+        <Route path="/:slug" element={<TrackScreen {...chrome} />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </>
+  )
 
   return (
     <>
-      <Routes>
-        <Route element={<ScreenTransition />}>
-          <Route path="/" element={<HubScreen {...chrome} />} />
-          <Route path="/:slug" element={<TrackScreen {...chrome} />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      {PanelRoutes ? (
+        <Suspense fallback={<Loading />}>
+          <PanelRoutes marketing={marketing} />
+        </Suspense>
+      ) : (
+        <Routes>{marketing}</Routes>
+      )}
       <Menu open={menuOpen} onClose={() => setMenuOpen(false)} />
     </>
   )
 }
 
-/**
- * The single-file build (npm run build:artifact) is opened from a sandboxed
- * host with no server rewrites, so history routing has nothing to rewrite
- * deep links against. Hash routing keeps every screen linkable there while
- * the normal build keeps clean paths.
- */
 const Router = import.meta.env.VITE_HASH_ROUTER === '1' ? HashRouter : BrowserRouter
 
 export default function App() {
