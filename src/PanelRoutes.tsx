@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { AuthProvider } from './auth/AuthProvider'
+import { PanelBoundary } from './auth/PanelBoundary'
 import { RequireRole } from './auth/RequireRole'
 import { LoginScreen } from './screens/LoginScreen'
 import { AdminBookingsScreen } from './screens/AdminBookingsScreen'
@@ -21,35 +22,37 @@ import { ClientChatScreen } from './screens/ClientChatScreen'
  */
 export default function PanelRoutes({ marketing }: { marketing: ReactNode }) {
   return (
-    <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<LoginScreen />} />
-        <Route
-          path="/admin"
-          element={
-            <RequireRole allow={['admin']}>
-              <AdminBookingsScreen />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/admin/bookings/:id"
-          element={
-            <RequireRole allow={['admin']}>
-              <AdminBookingScreen />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/chat"
-          element={
-            <RequireRole allow={['client', 'admin']}>
-              <ClientChatScreen />
-            </RequireRole>
-          }
-        />
-        {marketing}
-      </Routes>
-    </AuthProvider>
+    <PanelBoundary>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginScreen />} />
+          <Route
+            path="/admin"
+            element={
+              <RequireRole allow={['admin']}>
+                <AdminBookingsScreen />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/admin/bookings/:id"
+            element={
+              <RequireRole allow={['admin']}>
+                <AdminBookingScreen />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <RequireRole allow={['client', 'admin']}>
+                <ClientChatScreen />
+              </RequireRole>
+            }
+          />
+          {marketing}
+          </Routes>
+      </AuthProvider>
+    </PanelBoundary>
   )
 }

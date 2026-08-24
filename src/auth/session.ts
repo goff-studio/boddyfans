@@ -14,6 +14,8 @@ export type Session = {
   role: Role
   /** False until the first auth callback lands — do not redirect before then. */
   ready: boolean
+  /** False when the VITE_FIREBASE_* values are missing from the build. */
+  configured: boolean
   displayName: string | null
   signIn: (identifier: string, password: string) => Promise<void>
   signOutNow: () => Promise<void>

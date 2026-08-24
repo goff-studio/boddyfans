@@ -117,9 +117,12 @@ export function BookingSheet({
         receipt: prepared.receipt,
       })
       setSent(true)
-    } catch {
+    } catch (e) {
+      const misconfigured = e instanceof Error && /not configured/i.test(e.message)
       setSendError(
-        'That did not go through. Check your connection and try again — your details are still here.',
+        misconfigured
+          ? 'Bookings are not available right now. Please contact Anna directly.'
+          : 'That did not go through. Check your connection and try again — your details are still here.',
       )
     } finally {
       setSending(false)

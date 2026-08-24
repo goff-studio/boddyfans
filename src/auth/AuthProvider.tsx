@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
-import { getAuthClient, getDb, toLoginEmail } from '../firebase'
+import { getAuthClient, getDb, isFirebaseConfigured, toLoginEmail } from '../firebase'
 import { AuthContext, type Role, type Session } from './session'
 
 /**
@@ -19,13 +19,25 @@ import { AuthContext, type Role, type Session } from './session'
 
 
 
+const CONFIGURED = isFirebaseConfigured()
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [role, setRole] = useState<Role>('none')
   const [displayName, setDisplayName] = useState<string | null>(null)
-  const [ready, setReady] = useState(false)
+  // Unconfigured means there is no auth callback coming, so the session is
+  // already as resolved as it will ever get. Initialising rather than setting
+  // this in the effect keeps the first render truthful.
+  const [ready, setReady] = useState(!CONFIGURED)
 
   useEffect(() => {
+    // Without config there is nothing to talk to. Returning early matters more
+    // than it looks: this provider wraps the marketing routes too, and
+    // `getAuthClient()` throws when the VITE_FIREBASE_* values are missing —
+    // a throw inside an effect unmounts the whole tree, which took the entire
+    // site down rather than just the panel.
+    if (!CONFIGURED) return
+
     let active = true
 
     const stop = onAuthStateChanged(getAuthClient(), async (next) => {
@@ -87,8 +99,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       role,
       ready,
+      configured: CONFIGURED,
       displayName,
       signIn: async (identifier, password) => {
+        if (!CONFIGURED) throw new Error('NOT_CONFIGURED')
         await signInWithEmailAndPassword(getAuthClient(), toLoginEmail(identifier), password)
       },
       signOutNow: async () => {

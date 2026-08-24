@@ -17,8 +17,20 @@ export function RequireRole({
   allow: Role[]
   children: ReactNode
 }) {
-  const { role, ready, user } = useSession()
+  const { role, ready, user, configured } = useSession()
   const location = useLocation()
+
+  if (!configured) {
+    return (
+      <div className="panelState">
+        <h1 className="panelState__title">Not configured</h1>
+        <p className="panelState__text">
+          This build has no Firebase configuration, so sign-in and chat are
+          unavailable. The rest of the site works normally.
+        </p>
+      </div>
+    )
+  }
 
   if (!ready) {
     return (

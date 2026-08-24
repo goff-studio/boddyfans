@@ -280,9 +280,24 @@ Symptoms of a missing variable:
 
 | Missing | What you see |
 | --- | --- |
-| any `VITE_FIREBASE_*` | Marketing pages fine; `/login` and `/admin` throw "Firebase is not configured" |
+| any `VITE_FIREBASE_*` | Marketing pages keep working. `/admin` and `/chat` show "Not configured", and sign-in says so explicitly. This used to blank the entire site — see below |
 | `VITE_SITE_URL` | Build logs a warning; `sitemap.xml` and `og:image` point at `example.invalid`, no canonical tags |
 | `VITE_USE_EMULATORS` left at `1` | The deployed app tries to reach `127.0.0.1` and every read hangs |
+
+**A missing config must not take the site down.** `AuthProvider` wraps the
+marketing routes as well as the panel, and `getAuthClient()` throws when the
+`VITE_FIREBASE_*` values are absent. A throw inside an effect unmounts the whole
+tree, so one missing variable blanked every page, marketing included. Two guards
+now prevent that, and both are load-bearing:
+
+- `AuthProvider` checks `isFirebaseConfigured()` and returns before touching
+  Firebase at all.
+- `PanelBoundary` is an error boundary around the panel tree, so any *other*
+  runtime failure there degrades to a message instead of a blank document.
+
+If you add code that reaches for Firebase outside the panel routes, rebuild with
+no `VITE_FIREBASE_*` set and confirm `/` still renders. That is the regression
+this pair exists to stop.
 
 **Why the blanket rewrite is safe.** `vercel.json` rewrites `/(.*)` to
 `/index.html`, but Vercel checks the filesystem first — so `/train` still serves

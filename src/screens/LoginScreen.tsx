@@ -34,10 +34,15 @@ export function LoginScreen() {
     try {
       await signIn(identifier, password)
       navigate('/admin', { replace: true }) // RequireRole re-routes a client to /chat
-    } catch {
-      // Deliberately not distinguishing "no such user" from "wrong password" —
-      // that difference tells an attacker which usernames exist.
-      setError('That username or password is not right.')
+    } catch (e) {
+      // "No such user" and "wrong password" stay indistinguishable — that
+      // difference tells an attacker which usernames exist. A missing build
+      // config is a different thing entirely and worth saying out loud.
+      setError(
+        e instanceof Error && e.message === 'NOT_CONFIGURED'
+          ? 'Sign-in is unavailable: this build is missing its Firebase configuration.'
+          : 'That username or password is not right.',
+      )
       setBusy(false)
     }
   }
