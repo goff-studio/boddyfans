@@ -13,7 +13,8 @@
     "emulators": "firebase emulators:start --only auth,firestore",
     "test:crypto": "esbuild src/chat/crypto.test.ts --bundle --platform=node --format=esm --target=node20 --outfile=node_modules/.tmp/crypto.test.mjs --log-level=warning && node --test node_modules/.tmp/crypto.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore \"esbuild src/chat/rules.test.ts --bundle --packages=external --platform=node --format=esm --target=node20 --outfile=node_modules/.tmp/rules.test.mjs --log-level=warning && node --test node_modules/.tmp/rules.test.mjs\"",
-    "seed": "node scripts/seed-emulator.mjs"
+    "seed": "node scripts/seed-emulator.mjs",
+    "dev:local": "VITE_USE_EMULATORS=1 firebase emulators:exec --only auth,firestore \"npm run seed && VITE_USE_EMULATORS=1 npm run dev\""
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
