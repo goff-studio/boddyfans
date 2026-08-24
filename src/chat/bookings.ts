@@ -234,6 +234,62 @@ export async function approveBooking(
   return { username, password, conversationId: conversationRef.id }
 }
 
+/**
+ * Issue a fresh login for an already-approved booking.
+ *
+ * There is no "reset this other user's password" on the Spark plan: that needs
+ * the Admin SDK, and `updatePassword` only works for the signed-in user. So a
+ * reissue provisions a NEW account and moves the booking and the conversation
+ * onto it. Consequences, both surfaced in the UI:
+ *
+ *   - the username changes (the old email already exists, so it cannot be
+ *     reused)
+ *   - the previous login stops working, because it is no longer a participant
+ *
+ * Chat history survives: the conversation document is reused, only its
+ * participants change.
+ */
+export async function reissueAccess(
+  booking: Booking,
+  adminUid: string,
+  desiredUsername: string,
+): Promise<ApprovalResult> {
+  if (!booking.conversationId) {
+    throw new Error('This booking has no chat yet — approve it first.')
+  }
+  const username = normalizeUsername(desiredUsername)
+  if (!username) throw new Error('Pick a username of at least one character.')
+  if (await isUsernameTaken(username)) {
+    throw new Error(`The username "${username}" is already taken.`)
+  }
+
+  const password = generatePassphrase()
+  const clientUid = await createAccountOutOfBand(usernameToEmail(username), password)
+
+  const db = getDb()
+  const batch = writeBatch(db)
+
+  batch.set(doc(db, 'users', clientUid), {
+    username,
+    displayName: booking.name,
+    ...(booking.email ? { email: booking.email } : {}),
+    role: 'client',
+    bookingId: booking.id,
+    createdAt: serverTimestamp(),
+  })
+  batch.set(doc(db, 'usernames', username), { uid: clientUid })
+
+  // Same conversation, new participant — the old uid loses access here.
+  batch.update(doc(db, 'conversations', booking.conversationId), {
+    participants: [adminUid, clientUid],
+  })
+  batch.update(doc(db, 'bookings', booking.id), { clientUid })
+
+  await batch.commit()
+
+  return { username, password, conversationId: booking.conversationId }
+}
+
 export async function declineBooking(bookingId: string): Promise<void> {
   await updateDoc(doc(getDb(), 'bookings', bookingId), { status: 'declined' })
 }

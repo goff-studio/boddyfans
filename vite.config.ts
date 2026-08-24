@@ -1,10 +1,25 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { FALLBACK_SITE_URL, ROUTES, SITE, absolute, metaForPath } from './src/seo'
 import { TRACKS } from './src/data/tracks'
 
-const SITE_URL = process.env.VITE_SITE_URL || FALLBACK_SITE_URL
-const HASH_ROUTER = process.env.VITE_HASH_ROUTER === '1'
+/**
+ * Config-time environment.
+ *
+ * `process.env` alone is NOT enough: Vite loads `.env` for the app's
+ * `import.meta.env`, but never puts it on `process.env`. Reading only the
+ * latter meant every local build ignored `.env` and shipped the placeholder
+ * site URL. `loadEnv` reads the files; the shell/CI is layered on top so an
+ * explicit `VITE_SITE_URL=... npm run build` still wins.
+ */
+function resolveEnv(mode: string): Record<string, string | undefined> {
+  return { ...loadEnv(mode, process.cwd(), ''), ...process.env }
+}
+
+let SITE_URL = FALLBACK_SITE_URL
+let HASH_ROUTER = false
+let EMBEDDED = false
+let BUILD_DATE = ''
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -88,6 +103,54 @@ function headFor(path: string): string {
  * that already carries its own title, description and card image. With six
  * routes it is cheaper to emit six files than to add a render server.
  */
+/**
+ * Fails a production build that is missing its Firebase configuration.
+ *
+ * Vite inlines `VITE_*` at build time, so an unset variable does not error — it
+ * silently ships an app whose sign-in and chat cannot work. That is exactly how
+ * a broken build reached production: green pipeline, dead panel. Better to stop
+ * here, where the message can name the missing keys.
+ *
+ * The embedded preview build is exempt: it deliberately excludes Firebase.
+ * Set ALLOW_UNCONFIGURED_BUILD=1 for a deliberate config-less build.
+ */
+function requireFirebaseConfig(env: Record<string, string | undefined>): Plugin {
+  return {
+    name: 'atelier-require-firebase-config',
+    apply: 'build',
+    buildStart() {
+      if (EMBEDDED || env.ALLOW_UNCONFIGURED_BUILD === '1') return
+
+      const required = [
+        'VITE_FIREBASE_API_KEY',
+        'VITE_FIREBASE_PROJECT_ID',
+        'VITE_FIREBASE_AUTH_DOMAIN',
+        'VITE_FIREBASE_APP_ID',
+      ]
+      const missing = required.filter((k) => !env[k])
+      if (missing.length === 0) return
+
+      throw new Error(
+        [
+          '',
+          'This build is missing its Firebase configuration:',
+          ...missing.map((k) => `  - ${k}`),
+          '',
+          'Vite inlines these at build time, so building without them ships an',
+          'app whose sign-in and chat cannot work.',
+          '',
+          'Locally:  copy .env.example to .env and fill it in.',
+          'Vercel:   Settings > Environment Variables, for the environment being',
+          '          built, then redeploy (values are baked in at build time).',
+          '',
+          'For a deliberate build without Firebase: ALLOW_UNCONFIGURED_BUILD=1',
+          '',
+        ].join('\n'),
+      )
+    },
+  }
+}
+
 function seo(): Plugin {
   const START = '<!--seo:start-->'
   const END = '<!--seo:end-->'
@@ -109,7 +172,7 @@ function seo(): Plugin {
     },
 
     generateBundle(_options, bundle) {
-      const today = process.env.BUILD_DATE || ''
+      const today = BUILD_DATE
       this.emitFile({
         type: 'asset',
         fileName: 'sitemap.xml',
@@ -161,8 +224,15 @@ function seo(): Plugin {
   }
 }
 
-export default defineConfig({
-  plugins: [react(), seo()],
+export default defineConfig(({ mode }) => {
+  const env = resolveEnv(mode)
+  SITE_URL = env.VITE_SITE_URL || FALLBACK_SITE_URL
+  HASH_ROUTER = env.VITE_HASH_ROUTER === '1'
+  EMBEDDED = env.VITE_EMBEDDED === '1'
+  BUILD_DATE = env.BUILD_DATE || ''
+
+  return {
+  plugins: [react(), requireFirebaseConfig(env), seo()],
   build: HASH_ROUTER
     ? {
         // scripts/build-singlefile.mjs inlines exactly one script tag, so the
@@ -171,4 +241,5 @@ export default defineConfig({
         rollupOptions: { output: { inlineDynamicImports: true } },
       }
     : {},
+  }
 })

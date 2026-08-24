@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Wordmark } from '../components/Chrome'
 import { Pressable } from '../motion/primitives'
@@ -12,18 +12,38 @@ import { useSession } from '../auth/session'
  * so neither has to know the synthetic-email trick underneath.
  */
 export function LoginScreen() {
-  const { signIn, user, role, ready } = useSession()
+  const { signIn, user, role, ready, signOutNow } = useSession()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const navigate = useNavigate()
   const location = useLocation()
 
   // Already signed in: go where they were headed, or to their home surface.
   if (ready && user && role !== 'none') {
     const from = (location.state as { from?: string } | null)?.from
-    return <Navigate to={from ?? (role === 'admin' ? '/admin' : '/chat')} replace />
+    const home = role === 'admin' ? '/admin' : '/chat'
+    // Only honour `from` if this role can actually open it, or a client bounced
+    // off /admin would be sent straight back to it.
+    const allowed = role === 'admin' || from === '/chat'
+    return <Navigate to={allowed && from ? from : home} replace />
+  }
+
+  // Signed in but never provisioned. Say so here rather than letting the form
+  // sit there looking like the submit silently failed.
+  if (ready && user && role === 'none') {
+    return (
+      <div className="panelState">
+        <h1 className="panelState__title">No access yet</h1>
+        <p className="panelState__text">
+          This account exists but has not been given access. Anna needs to
+          approve a booking for it.
+        </p>
+        <button type="button" className="ghostbtn" onClick={() => void signOutNow()}>
+          <span>SIGN OUT</span>
+        </button>
+      </div>
+    )
   }
 
   async function submit(e: React.FormEvent) {
@@ -33,7 +53,10 @@ export function LoginScreen() {
     setError(null)
     try {
       await signIn(identifier, password)
-      navigate('/admin', { replace: true }) // RequireRole re-routes a client to /chat
+      // Deliberately no navigate() here. The role is resolved asynchronously by
+      // AuthProvider, so there is nothing to route on yet — the redirect below
+      // fires on the next render once it lands. Navigating to /admin eagerly is
+      // what sent every client to a "No access" screen.
     } catch (e) {
       // "No such user" and "wrong password" stay indistinguishable — that
       // difference tells an attacker which usernames exist. A missing build

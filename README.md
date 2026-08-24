@@ -122,6 +122,12 @@ If it is unset the build warns, omits `canonical`/`og:url` rather than emitting
 a wrong one, and falls back to `https://example.invalid` (a reserved TLD, so it
 can never resolve or point at somebody else's site).
 
+`vite.config.ts` resolves this through Vite's `loadEnv`, not `process.env`.
+That distinction matters: Vite loads `.env` for the app's `import.meta.env` but
+never copies it onto `process.env`, so a config that reads `process.env` alone
+silently ignores `.env` — which is exactly what shipped `example.invalid` from
+local builds for a while.
+
 **Per-route HTML, not just runtime tags.** `src/seo.ts` holds the metadata for
 all six routes; the Vite plugin in `vite.config.ts` bakes a real `<head>` into
 one HTML file per route (`dist/train/index.html` and so on), and `src/useSeo.ts`
@@ -259,8 +265,13 @@ directory and the SPA rewrite; Vercel needs no other configuration.
 
 **Set the environment variables in the Vercel dashboard.** `.env` is gitignored,
 so the repo carries no config — and Vite inlines `VITE_*` values at build time,
-meaning a variable missing at build time is missing from the shipped app. The
-build still succeeds, which is the trap: it just ships a broken one.
+meaning a variable missing at build time is missing from the shipped app.
+
+**The build now refuses to run without them.** It used to succeed and ship a
+dead panel, which is how a broken build reached production once already. If the
+Firebase keys are absent the build fails and names them. For a deliberate
+config-less build, set `ALLOW_UNCONFIGURED_BUILD=1` (the embedded preview build
+is exempt automatically).
 
 Project → Settings → Environment Variables, for Production *and* Preview:
 
@@ -272,7 +283,7 @@ VITE_FIREBASE_STORAGE_BUCKET      body-fans.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID 23622028814
 VITE_FIREBASE_APP_ID              1:23622028814:web:…
 VITE_CLIENT_EMAIL_DOMAIN          clients.body-fans.com
-VITE_SITE_URL                     https://body-fans.com
+VITE_SITE_URL                     https://www.body-fans.com
 VITE_USE_EMULATORS                0
 ```
 
@@ -281,7 +292,7 @@ Symptoms of a missing variable:
 | Missing | What you see |
 | --- | --- |
 | any `VITE_FIREBASE_*` | Marketing pages keep working. `/admin` and `/chat` show "Not configured", and sign-in says so explicitly. This used to blank the entire site — see below |
-| `VITE_SITE_URL` | Build logs a warning; `sitemap.xml` and `og:image` point at `example.invalid`, no canonical tags |
+| `VITE_SITE_URL` | Build warns; `sitemap.xml` and `og:image` point at `example.invalid`, no canonical tags |
 | `VITE_USE_EMULATORS` left at `1` | The deployed app tries to reach `127.0.0.1` and every read hangs |
 
 **A missing config must not take the site down.** `AuthProvider` wraps the
@@ -310,7 +321,12 @@ Verify after a deploy by viewing source on `/train`: you should see
 the one project, so test bookings made there land in production data. There is no
 staging project.
 
-After the first deploy, add `body-fans.com` under Authentication → Settings →
+**Use the host you actually serve.** The site resolves to
+`www.body-fans.com`, so `VITE_SITE_URL` is the `www` form — a canonical tag
+pointing at a host that only redirects is worse than none. If you flip the
+primary domain to the apex, change this to match.
+
+After the first deploy, add `www.body-fans.com` under Authentication → Settings →
 Authorized domains. Email/password sign-in generally works without it, but it is
 required the moment Google sign-in or email links are added.
 
@@ -385,12 +401,23 @@ depends on.
 If the list shows "Could not load bookings", the rules from step 4 are not
 published — the browser console carries the underlying Firestore error.
 
-### Rotating or reissuing a client's password
+### Reissuing a client's login
 
-There is no self-service reset (a username has no inbox). In the console:
-Authentication → Users → the client's row → ⋮ → Reset password, or delete the
-account and re-approve. If you delete an account, also remove its
-`usernames/{username}` document, or that username stays reserved.
+There is no password reset: a username has no inbox, and changing another
+account's password needs the Admin SDK, which Spark does not have.
+
+So an approved booking has a **Reissue login** control instead. It provisions a
+new account and moves the booking and conversation onto it. Two consequences,
+both stated in the UI:
+
+- the **username changes** — the old email already exists and cannot be reused
+- the **old login stops working**, because it is no longer a conversation
+  participant
+
+Chat history survives: the conversation document is reused, only its
+`participants` change. Verified end to end — after a reissue the old credentials
+still authenticate but get `permission-denied` on the transcript, while the new
+ones read it in full.
 
 ### Known gaps
 

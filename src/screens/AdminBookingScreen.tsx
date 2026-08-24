@@ -13,6 +13,7 @@ import {
   getBooking,
   getReceipt,
   isUsernameTaken,
+  reissueAccess,
   type ApprovalResult,
   type Booking,
 } from '../chat/bookings'
@@ -71,14 +72,17 @@ export function AdminBookingScreen() {
       <Receipt receipt={receipt} />
 
       {booking.status === 'approved' && booking.conversationId && user ? (
-        <section className="section">
-          <h2 className="section__title">Chat</h2>
-          <ChatPane
-            conversationId={booking.conversationId}
-            myUid={user.uid}
-            otherLabel={booking.name}
-          />
-        </section>
+        <>
+          <section className="section">
+            <h2 className="section__title">Chat</h2>
+            <ChatPane
+              conversationId={booking.conversationId}
+              myUid={user.uid}
+              otherLabel={booking.name}
+            />
+          </section>
+          <Reissue booking={booking} adminUid={user.uid} />
+        </>
       ) : booking.status === 'pending' ? (
         <Approve booking={booking} adminUid={user?.uid ?? ''} onDone={setBooking} />
       ) : (
@@ -139,6 +143,137 @@ function Receipt({
   )
 }
 
+/** Shown once after provisioning. The password is never stored. */
+function Credentials({
+  name,
+  issued,
+  note,
+}: {
+  name: string
+  issued: ApprovalResult
+  note: string
+}) {
+  return (
+    <motion.section
+      className="section"
+      initial={{ opacity: 0, transform: 'translateY(8px)' }}
+      animate={{ opacity: 1, transform: 'translateY(0px)' }}
+      transition={{ duration: DURATION.short, ease: EASE_OUT }}
+    >
+      <h2 className="section__title">Access created</h2>
+      <p className="booking__lede">
+        Send these to {name}. <strong>The password is shown once</strong> — it is
+        not stored anywhere, so copy it now. {note}
+      </p>
+      <div className="account">
+        <CopyRow label="Username" value={issued.username} strong />
+        <CopyRow label="Password" value={issued.password} strong />
+        <CopyRow label="Sign in at" value={`${window.location.origin}/login`} />
+      </div>
+      <div className="booking__actions">
+        <Pressable className="cta" onClick={() => window.location.reload()}>
+          <span>DONE</span>
+        </Pressable>
+      </div>
+    </motion.section>
+  )
+}
+
+/**
+ * Reissue a login. Spark has no Admin SDK, so a password cannot be reset for
+ * another account — a new login replaces the old one instead. The copy says so,
+ * because the username changing is a surprise otherwise.
+ */
+function Reissue({ booking, adminUid }: { booking: Booking; adminUid: string }) {
+  const [open, setOpen] = useState(false)
+  const [username, setUsername] = useState(`${normalizeUsername(booking.name)}2`)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [issued, setIssued] = useState<ApprovalResult | null>(null)
+
+  if (issued) {
+    return (
+      <Credentials
+        name={booking.name}
+        issued={issued}
+        note="Their previous login no longer works."
+      />
+    )
+  }
+
+  if (!open) {
+    return (
+      <section className="section">
+        <h2 className="section__title">Lost password</h2>
+        <p className="booking__lede">
+          Passwords cannot be recovered — issue a new login instead.
+        </p>
+        <div className="booking__actions">
+          <Pressable className="ghostbtn" onClick={() => setOpen(true)}>
+            <span>REISSUE LOGIN</span>
+          </Pressable>
+        </div>
+      </section>
+    )
+  }
+
+  const clean = normalizeUsername(username)
+
+  async function run() {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      setIssued(await reissueAccess(booking, adminUid, username))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not reissue the login.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="section">
+      <h2 className="section__title">Reissue login</h2>
+      <p className="booking__lede">
+        This creates a new username and password for {booking.name} and{' '}
+        <strong>stops their old login working</strong>. The chat history stays.
+        The username has to change, because the old one is already taken.
+      </p>
+
+      <label className="field">
+        <span className="field__label">New username</span>
+        <input
+          className="field__input"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          autoCapitalize="none"
+          spellCheck={false}
+        />
+        <span className="field__hint">
+          {clean ? `They will sign in as "${clean}".` : 'Needs at least one character.'}
+        </span>
+      </label>
+
+      {error ? (
+        <p className="field__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="booking__actions">
+        <Pressable className="ghostbtn" onClick={() => setOpen(false)} disabled={busy}>
+          <span>CANCEL</span>
+        </Pressable>
+        <Pressable className="cta" onClick={run} disabled={busy || !clean}>
+          <span>{busy ? 'CREATING…' : 'CREATE NEW LOGIN'}</span>
+          <span className="cta__arrow" aria-hidden="true">→</span>
+        </Pressable>
+      </div>
+    </section>
+  )
+}
+
 function Approve({
   booking,
   adminUid,
@@ -171,29 +306,11 @@ function Approve({
 
   if (issued) {
     return (
-      <motion.section
-        className="section"
-        initial={{ opacity: 0, transform: 'translateY(8px)' }}
-        animate={{ opacity: 1, transform: 'translateY(0px)' }}
-        transition={{ duration: DURATION.short, ease: EASE_OUT }}
-      >
-        <h2 className="section__title">Access created</h2>
-        <p className="booking__lede">
-          Send these to {booking.name}. <strong>The password is shown once</strong> —
-          it is not stored anywhere, so copy it now. You can always issue a new one.
-        </p>
-        <div className="account">
-          <CopyRow label="Username" value={issued.username} strong />
-          <CopyRow label="Password" value={issued.password} strong />
-          <CopyRow label="Sign in at" value={`${window.location.origin}/login`} />
-        </div>
-        <div className="booking__actions">
-          <Pressable className="cta" onClick={() => window.location.reload()}>
-            <span>OPEN THE CHAT</span>
-            <span className="cta__arrow" aria-hidden="true">→</span>
-          </Pressable>
-        </div>
-      </motion.section>
+      <Credentials
+        name={booking.name}
+        issued={issued}
+        note="You can always issue a new one."
+      />
     )
   }
 
