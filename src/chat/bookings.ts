@@ -103,7 +103,30 @@ export async function submitBooking(input: NewBooking): Promise<string> {
     createdAt: serverTimestamp(),
   })
 
+  // Fire the confirmation, but never let it fail the booking: the booking is
+  // already saved, and a mail problem is Anna's to notice, not the client's to
+  // be blocked by. The endpoint is idempotent, so a retry is harmless.
+  void requestConfirmationEmail(ref.id)
+
   return ref.id
+}
+
+/**
+ * Asks the Vercel function to send the purchase confirmation.
+ *
+ * Only the booking id crosses the wire — the recipient is read server-side from
+ * the document, so this cannot be pointed at an arbitrary address.
+ */
+async function requestConfirmationEmail(bookingId: string): Promise<void> {
+  try {
+    await fetch('/api/booking-confirmation', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ bookingId }),
+    })
+  } catch {
+    // Offline, blocked, or running under `vite dev` where /api does not exist.
+  }
 }
 
 /* --- admin reads --------------------------------------------------------- */

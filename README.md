@@ -257,6 +257,61 @@ The marketing entry must not pay for Firebase. It is loaded through
 If you add a Firebase import to anything on the marketing path, check
 `dist/assets` afterwards.
 
+### Booking confirmation email
+
+One email, sent once, when a booking is submitted. Nothing else is emailed —
+credentials in particular are never sent, because email is not a secure channel
+and the password is deliberately shown once.
+
+It runs as a **Vercel Serverless Function** (`api/booking-confirmation.ts`), not
+a Firebase Function, so it needs no Blaze plan. That is the whole point: sending
+mail needs a provider key, and any key in the browser bundle can be lifted and
+used to send mail from your domain. EmailJS, Formspree and webhook URLs all have
+this problem; a domain allowlist does not fix it, since referrers are spoofable.
+
+**The endpoint takes only a booking id.** It reads the booking server-side and
+sends to the address stored on that document. It never accepts a recipient from
+the request — otherwise it would be an open relay for mail from body-fans.com.
+
+Other guards, all covered by `npm run test:email`:
+
+- **Idempotent.** `confirmationSentAt` is written *before* the send, so a retry
+  or a double-submit cannot produce two emails. A missing confirmation is better
+  than a duplicate one.
+- **Not an oracle.** An unknown booking id returns the same response as an
+  already-sent one, so the endpoint cannot be used to probe which ids exist.
+- **Bounded.** Only `pending` bookings, only within 24 hours of creation.
+- **Escaped.** Everything from the booking form is HTML-escaped; the tests
+  assert that no markup can form, not merely that a substring is absent.
+- **Has a plain-text part**, because HTML-only mail scores as spam.
+
+Environment variables — **server-side, so no `VITE_` prefix**, or they would be
+inlined into the browser bundle:
+
+```
+RESEND_API_KEY            re_...
+MAIL_FROM                 Anna Nefedova <hello@body-fans.com>
+FIREBASE_SERVICE_ACCOUNT  base64 of the service account JSON
+```
+
+The service account comes from the Firebase console (Project settings → Service
+accounts → Generate new private key), so no CLI. Base64 it because the JSON has
+newlines:
+
+```bash
+base64 -i service-account.json | pbcopy
+```
+
+**Before the first send, add SPF and DKIM for body-fans.com** in Resend's
+dashboard. Without them the mail lands in spam or is rejected outright.
+
+Note that `vercel.json` rewrites `/((?!api/).*)` rather than `/(.*)` — the
+negative lookahead is what keeps the SPA fallback from swallowing the function.
+
+The call is fire-and-forget from `submitBooking`: the booking is already saved,
+so a mail failure must not block the client. It also fails silently under
+`vite dev`, where `/api` does not exist.
+
 ### Deploying — Vercel builds from the repo
 
 Firebase Hosting needs the CLI, so the site is hosted on Vercel at
