@@ -3,6 +3,7 @@ import { Wordmark } from '../components/Chrome'
 import { useSession } from '../auth/session'
 import { ChatPane } from '../chat/ChatPane'
 import { getMyChat } from '../chat/bookings'
+import { SUPPORT } from '../data/support'
 
 /**
  * The client's side: one conversation, the one attached to their booking.
@@ -66,6 +67,27 @@ export function ClientChatScreen() {
                 otherLabel="Anna"
                 readOnly={chat.status === 'closed'}
               />
+
+              {/* Only once the sessions are done: nothing is pending, the
+                  client has already been helped, and there is no paid action
+                  for this to compete with. */}
+              {chat.status === 'closed' ? (
+                <section className="tip">
+                  <h2 className="tip__title">{SUPPORT.closedTitle}</h2>
+                  <p className="tip__body">{SUPPORT.closedBody}</p>
+                  <a
+                    className="ghostbtn tip__cta"
+                    href={SUPPORT.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span>{SUPPORT.cta}</span>
+                    <span className="ghostbtn__arrow tip__arrow" aria-hidden="true">
+                      →
+                    </span>
+                  </a>
+                </section>
+              ) : null}
             </>
           )}
         </div>

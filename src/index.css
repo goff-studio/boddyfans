@@ -1646,3 +1646,70 @@ ul {
   background: #faeee7;
   border-radius: 10px;
 }
+
+/* ===========================================================================
+   Support the atelier — a tip, not a track
+   =========================================================================== */
+
+/* Sits apart from the numbered items: a heavier rule above it, and no number
+   in the slot where every track has one. */
+.menu__item--support {
+  margin-top: 10px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+  border-bottom: 0;
+}
+
+.menu__support {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--coral);
+}
+
+/* --- the closed-chat card ------------------------------------------------- */
+
+.tip {
+  margin-top: 30px;
+  padding: 22px 22px 24px;
+  background: #faeee7;
+  border-radius: 12px;
+}
+
+.tip__title {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.tip__body {
+  margin: 0 0 18px;
+  max-width: 46ch;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--body);
+}
+
+.tip__cta {
+  border-color: rgba(10, 10, 10, 0.2);
+  background: var(--bg);
+}
+
+.tip__arrow {
+  /* The ghost button's arrow points back; this one leads out to PayPal. */
+  transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .menu__item--support:hover .menu__support {
+    color: #fff;
+    transition: color var(--dur-micro) ease;
+  }
+
+  .tip__cta:hover .tip__arrow {
+    transform: translateX(3px);
+  }
+}

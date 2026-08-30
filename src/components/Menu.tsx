@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useEffect } from 'react'
 import { TRACKS } from '../data/tracks'
+import { SUPPORT } from '../data/support'
 import { DURATION, EASE_OUT, STAGGER } from '../motion/tokens'
 import { MenuButton, Wordmark } from './Chrome'
 
@@ -90,6 +91,30 @@ export function Menu({ open, onClose }: { open: boolean; onClose: () => void }) 
                 </Link>
               </motion.div>
             ))}
+            {/* Below the five, past a rule, and without a number — the
+                numbering is what marks something as a track you can book, so
+                leaving it off says this is not one. */}
+            <motion.div
+              variants={{
+                hidden: {
+                  opacity: 0,
+                  transform: reduce ? 'translateY(0px)' : 'translateY(12px)',
+                },
+                shown: { opacity: 1, transform: 'translateY(0px)' },
+              }}
+              transition={{ duration: DURATION.short, ease: EASE_OUT }}
+            >
+              <a
+                className="menu__item menu__item--support"
+                href={SUPPORT.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onClose}
+              >
+                <span className="menu__support">{SUPPORT.label}</span>
+                <em className="menu__tagline">{SUPPORT.menuTagline}</em>
+              </a>
+            </motion.div>
           </motion.nav>
         </motion.div>
       ) : null}
