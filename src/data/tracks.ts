@@ -75,7 +75,7 @@ export const TRACKS: Track[] = [
   {
     slug: 'connect',
     num: '05',
-    word: 'ONE-TO-ONE COACHING',
+    word: '1-ON-1 COACHING',
     kicker: 'ONLINE COACHING',
     tagline: '1-on-1 Dialogue',
     title: ['1-on-1', 'chat'],
