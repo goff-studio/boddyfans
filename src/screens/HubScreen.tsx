@@ -38,6 +38,20 @@ function tint(i: number): string {
  * Inter Tight — so the spacing is that target minus the advance. Re-derive the
  * 1.207 if the display face ever changes.
  */
+/**
+ * A hub word is split on spaces into separate vertical lines. One long line of
+ * upright letters would run past the label and off the column — "ONE-TO-ONE
+ * COACHING" is nineteen glyphs, where the longest single word here is seven.
+ */
+function wordLines(word: string): string[] {
+  return word.split(' ').filter(Boolean)
+}
+
+/** Drives the type size: the tallest line is what has to fit. */
+function longestLine(word: string): number {
+  return Math.max(...wordLines(word).map((l) => l.length))
+}
+
 const ADVANCE_EM = 1.207
 
 function pitchSpacing(glyphs: number): string {
@@ -92,9 +106,9 @@ export function HubScreen({
             style={
               {
                 ['--tint' as string]: tint(i),
-                ['--pitch' as string]: pitchSpacing(
-                  track.word.length + (track.glyph ? 1 : 0),
-                ),
+                ['--pitch' as string]: pitchSpacing(longestLine(track.word)),
+                // Drives the type size: the tallest line is what has to fit.
+                ['--glyphs' as string]: String(longestLine(track.word)),
               } as CSSProperties
             }
             variants={{
@@ -117,8 +131,14 @@ export function HubScreen({
               />
               <span className="cell__tint" aria-hidden="true" />
 
+              {/* Two elements, because two different things want `transform`.
+                  The wrapper owns the entrance animation; the inner element
+                  owns the writing mode. Putting both on one node meant the
+                  animation's inline transform silently replaced the
+                  translateX(-50%) that centres the word, leaving every column
+                  offset by half its width. */}
               <motion.span
-                className="cell__word"
+                className="cell__wordAnim"
                 variants={{
                   hidden: {
                     opacity: 0,
@@ -128,10 +148,13 @@ export function HubScreen({
                 }}
                 transition={{ duration: DURATION.short, ease: EASE_OUT }}
               >
-                {track.word}
-                {track.glyph ? (
-                  <span className="cell__glyph">{track.glyph}</span>
-                ) : null}
+                <span className="cell__word">
+                  {wordLines(track.word).map((line) => (
+                    <span key={line} className="cell__wordLine">
+                      {line}
+                    </span>
+                  ))}
+                </span>
               </motion.span>
 
               <motion.span

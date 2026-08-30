@@ -85,7 +85,6 @@ export function Menu({ open, onClose }: { open: boolean; onClose: () => void }) 
                   <span className="menu__num">{track.num}</span>
                   <span className="menu__word">
                     {track.word}
-                    {track.glyph ? <span className="menu__glyph">{track.glyph}</span> : null}
                   </span>
                   <em className="menu__tagline">{track.tagline}</em>
                 </Link>

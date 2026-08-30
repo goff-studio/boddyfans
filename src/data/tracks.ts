@@ -2,10 +2,11 @@ export type Track = {
   slug: string
   /** Display number, also used as the oversized watermark. */
   num: string
-  /** Vertical word on the hub. */
+  /**
+   * Word shown on the hub. Spaces become separate vertical lines, so a long
+   * label stays legible instead of running off the bottom of the column.
+   */
   word: string
-  /** Trailing glyph after the word, if any. */
-  glyph?: string
   /** Small caps label above the headline. */
   kicker: string
   /** Italic line shown on the hub only. */
@@ -74,8 +75,7 @@ export const TRACKS: Track[] = [
   {
     slug: 'connect',
     num: '05',
-    word: 'CHAT',
-    glyph: '🔥',
+    word: 'ONE-TO-ONE COACHING',
     kicker: 'ONLINE COACHING',
     tagline: '1-on-1 Dialogue',
     title: ['1-on-1', 'chat'],

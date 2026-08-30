@@ -395,15 +395,28 @@ ul {
    (the words hang from the top, they are not vertically centred). Sized off
    min(vw, vh) so a seven-letter word cannot run into the label on a short
    viewport. */
-.cell__word {
+/* Spans the cell so the word can be centred by layout rather than by a
+   transform — the entrance animation owns `transform` on this element. */
+.cell__wordAnim {
   position: absolute;
   top: 14.5%;
-  left: 50%;
-  transform: translateX(-50%);
-  writing-mode: vertical-rl;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  will-change: transform;
+}
+
+.cell__word {
+  /* vertical-LR so a two-line word reads left column first, the way Latin
+     text is scanned. With one line it is indistinguishable from vertical-rl. */
+  writing-mode: vertical-lr;
   text-orientation: upright;
   font-family: var(--display);
-  font-size: clamp(26px, min(6.2vw, 9.9vh), 90px);
+  /* The third term is what makes a long word fit: roughly the height between
+     the word's top and the label, divided by the glyphs in its longest line.
+     Short words are unaffected — they hit the 90px cap first. */
+  font-size: clamp(22px, min(6.2vw, 9.9vh, calc(74vh / var(--glyphs, 5))), 90px);
   font-weight: 400;
   letter-spacing: var(--pitch, -0.2em);
   line-height: 1;
@@ -414,8 +427,9 @@ ul {
 
 /* Inline, so upright vertical text stacks it under the last letter instead of
    starting a new column beside the word. */
-.cell__glyph {
-  font-size: 0.72em;
+/* Each space-separated part is its own column of upright letters. */
+.cell__wordLine {
+  display: block;
 }
 
 .cell__label {
@@ -513,10 +527,6 @@ ul {
   line-height: 1;
 }
 
-.menu__glyph {
-  margin-left: 0.16em;
-  font-size: 0.6em;
-}
 
 .menu__tagline {
   margin-left: auto;
@@ -614,28 +624,39 @@ ul {
   }
 
   /* Rows read left-to-right, so the word lies flat again. */
-  .cell__word {
-    top: 50%;
+  .cell__wordAnim {
+    top: 0;
+    bottom: 0;
     left: var(--gutter);
-    transform: translateY(-50%);
+    right: auto;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .cell__word {
     writing-mode: horizontal-tb;
-    font-size: 30px;
+    /* Same idea as the desktop rule, against width instead of height: the row
+       has to leave room for the label on the right. */
+    font-size: clamp(14px, calc(210px / var(--glyphs, 5)), 30px);
     letter-spacing: 0.34em;
+    line-height: 1.15;
   }
 
-  .cell__glyph {
-    display: inline;
-    margin: 0;
-    letter-spacing: 0;
+  /* Rows are laid out horizontally here, so the same parts become stacked
+     text lines rather than columns. */
+  .cell__wordLine {
+    display: block;
   }
 
+  /* Centred by layout, not by translateY(-50%): the entrance animation writes
+     `transform` on this element and would overwrite it. */
   .cell__label {
-    top: 50%;
+    top: 0;
     right: var(--gutter);
-    bottom: auto;
+    bottom: 0;
     left: auto;
-    transform: translateY(-50%);
     flex-direction: column;
+    justify-content: center;
     align-items: flex-end;
     gap: 2px;
   }
